@@ -109,11 +109,10 @@ window.addEventListener('DOMContentLoaded', () => {
 
 function checkSystemConsent() {
     const consent = localStorage.getItem('svgEditor_cookieAllowed');
-
-    if (consent !== 'true') {
+    if (consent === 'true') {
         const overlay = document.getElementById('sys-init-lock');
         if (overlay) {
-            overlay.classList.add('is-visible');
+            overlay.classList.add('unlocked');
         }
     }
 }
@@ -124,18 +123,13 @@ window.unlockSystem = function() {
         
         const overlay = document.getElementById('sys-init-lock');
         if (overlay) {
-            overlay.classList.remove('is-visible');
-            
-            setTimeout(() => {
-                overlay.style.display = 'none';
-            }, 300);
+            overlay.classList.add('unlocked');
         }
     } catch (e) {
-        alert("ストレージへの書き込みに失敗しました。ブラウザの設定を確認してください。");
+        alert("ストレージへの書き込みに失敗しました。");
     }
 };
 
-// Reset
 window.resetSystemConsent = function() {
     localStorage.removeItem('svgEditor_cookieAllowed');
     location.reload();

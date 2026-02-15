@@ -64,6 +64,15 @@
         </div>
     </div>
 </div>
+<script>
+    (function(){
+        try {
+            if (localStorage.getItem('svgEditor_cookieAllowed') === 'true') {
+                document.getElementById('sys-init-lock').classList.add('unlocked');
+            }
+        } catch(e){}
+    })();
+</script>
 
 <header>
     <h1>

@@ -101,36 +101,42 @@ function setupCanvasEvents() {
     });
 }
 
-// Cookie/LocalStorage Consent System
+//  System Initialization and Consent Management
 
 window.addEventListener('DOMContentLoaded', () => {
-    checkCookieConsent();
+    checkSystemConsent();
 });
 
-function checkCookieConsent() {
+function checkSystemConsent() {
     const consent = localStorage.getItem('svgEditor_cookieAllowed');
+
     if (consent !== 'true') {
-        const banner = document.getElementById('cookie-banner');
-        if (banner) {
-            banner.style.display = 'flex';
+        const overlay = document.getElementById('sys-init-lock');
+        if (overlay) {
+            overlay.classList.add('is-visible');
         }
     }
 }
 
-window.acceptCookies = function() {
-    localStorage.setItem('svgEditor_cookieAllowed', 'true');
-    hideCookieBanner();
+window.unlockSystem = function() {
+    try {
+        localStorage.setItem('svgEditor_cookieAllowed', 'true');
+        
+        const overlay = document.getElementById('sys-init-lock');
+        if (overlay) {
+            overlay.classList.remove('is-visible');
+            
+            setTimeout(() => {
+                overlay.style.display = 'none';
+            }, 300);
+        }
+    } catch (e) {
+        alert("ストレージへの書き込みに失敗しました。ブラウザの設定を確認してください。");
+    }
 };
 
-function hideCookieBanner() {
-    const banner = document.getElementById('cookie-banner');
-    if (banner) {
-        banner.style.display = 'none';
-    }
-}
-
-// (開発用リセット)
-window.resetCookieConsent = function() {
+// Reset
+window.resetSystemConsent = function() {
     localStorage.removeItem('svgEditor_cookieAllowed');
     location.reload();
 };

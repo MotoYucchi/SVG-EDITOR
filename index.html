@@ -51,15 +51,16 @@
     </script>
 </head>
 <body>
-<div id="cookie-banner" class="cookie-banner" style="display: none;">
-    <div class="cookie-content">
-        <h3>🔒 利用制限</h3>
+<div id="sys-init-lock" class="sys-lock-overlay">
+    <div class="sys-lock-content">
+        <h3>🔒 System Initialization</h3>
         <p>
-            SVG EDITORを利用するには、ブラウザの設定保存機能（Cookie/LocalStorage）への同意が必須です。<br><br>
-            同意いただけない場合、このツールは使用できません。
+            SVG EDITORを起動するために、ローカルストレージへのアクセス権限が必要です。<br>
+            これに同意することで、エディタの設定や作業状態をブラウザ内に保存できるようになります。<br><br>
+            <small style="color:#888;">※サーバーへのデータ送信は行われません。</small>
         </p>
-        <div class="cookie-buttons">
-            <button class="primary" onclick="acceptCookies()">上記に同意して利用を開始する</button>
+        <div class="sys-lock-actions">
+            <button class="primary" onclick="unlockSystem()">システムを起動する (同意)</button>
         </div>
     </div>
 </div>

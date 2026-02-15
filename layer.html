@@ -1,0 +1,17 @@
+<div class="panel-header">レイヤー (ドラッグで移動・階層化)</div>
+<div style="padding: 5px; display:flex; gap:5px; border-bottom:1px solid #3e3e42;">
+    <button onclick="deleteSelected()" title="削除" style="color:#ff6b6b; width:100%;">選択削除 ×</button>
+</div>
+
+<ul id="layer-list" ondragover="window.handleDragOverRoot(event)" ondrop="window.handleDropRoot(event)">
+    </ul>
+
+<div class="panel-header" style="margin-top: auto; border-top: 1px solid var(--border-color);">追加</div>
+<div style="padding: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 5px;">
+    <button onclick="addElement('rect')">+ Rect</button>
+    <button onclick="addElement('path')">+ Path</button>
+    <button onclick="addElement('text')">+ Text</button>
+    <button onclick="addElement('g')">+ Group</button>
+    <button onclick="triggerImageUpload()">+ Image</button>
+    <input type="file" id="image-upload-input" accept="image/*" onchange="handleAddImage(this)">
+</div>

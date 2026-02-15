@@ -1,0 +1,32 @@
+@media print {
+    header, .toolbar, .left-panel, .right-panel, .property-panel, .canvas-area::before {
+        display: none !important;
+    }
+
+    html, body {
+        overflow: visible !important;
+        height: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+        background: white !important;
+    }
+
+    .canvas-area, #svg-wrapper {
+        display: block !important;
+        overflow: visible !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+        height: auto !important;
+    }
+
+    #main-svg {
+        overflow: visible !important;
+    }
+}
+
+@page {
+    margin: 5mm;
+    size: auto;
+}

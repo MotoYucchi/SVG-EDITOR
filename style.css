@@ -142,17 +142,88 @@ button.active { background-color: #444; border-color: var(--accent-color); color
 }
 .property-group textarea { height: 80px; resize: vertical; }
 
-/* Code Editor Specific Style */
-.code-editor {
-    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-    font-size: 0.85rem;
-    background-color: #141414 !important;
-    color: #a9b7c6 !important;
-    line-height: 1.4;
-    border: 1px solid #444 !important;
+/* Modal Overlay */
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(5px);
+    z-index: 10000;
+    display: none;
+    justify-content: center;
+    align-items: center;
 }
 
-#file-input, #image-upload-input { display: none; }
+.modal-overlay.is-open {
+    display: flex;
+}
+
+.modal-content {
+    background-color: #1e1e1e;
+    border: 1px solid var(--accent-color);
+    width: 800px;
+    max-width: 90%;
+    height: 80vh;
+    border-radius: 5px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 0 30px rgba(0,0,0,0.5);
+}
+
+.modal-header {
+    padding: 10px 15px;
+    background: #252526;
+    border-bottom: 1px solid #333;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.modal-body {
+    flex: 1;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+}
+
+#code-modal-textarea {
+    flex: 1;
+    background-color: #141414;
+    color: #d4d4d4;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 14px;
+    line-height: 1.5;
+    border: 1px solid #444;
+    padding: 10px;
+    resize: none;
+    white-space: pre;
+    overflow: auto;
+}
+
+.modal-footer {
+    padding: 10px 15px;
+    border-top: 1px solid #333;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    line-height: 1;
+}
+
+/* Code Editor */
+.code-editor {
+    resize: vertical !important;
+    min-height: 160px;
+}
 
 /* System Initialization Lock Overlay */
 .sys-lock-overlay {

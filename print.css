@@ -1,5 +1,5 @@
 @media print {
-    header, .toolbar, .left-panel, .right-panel, .property-panel, .canvas-area::before {
+    header, .toolbar, .left-panel, .right-panel, .property-panel, .code-modal, .canvas-area::before {
         display: none !important;
     }
 

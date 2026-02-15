@@ -13,5 +13,6 @@
     <button onclick="addElement('text')">+ Text</button>
     <button onclick="addElement('g')">+ Group</button>
     <button onclick="triggerImageUpload()">+ Image</button>
-    <input type="file" id="image-upload-input" accept="image/*" onchange="handleAddImage(this)">
+    <button onclick="openRawCodeModal('add')" style="border-color:#aaa;">+ Raw Code</button>
+    <input style="display: none;" type="file" id="image-upload-input" accept="image/*" onchange="handleAddImage(this)">
 </div>

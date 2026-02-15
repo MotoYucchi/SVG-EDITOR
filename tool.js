@@ -164,6 +164,102 @@ function renderProperties(el) {
     addRawCodeEditor(el);
 }
 
+window.currentModalMode = null; // 'add' or 'edit'
+
+window.openRawCodeModal = function(mode) {
+    window.currentModalMode = mode;
+    const modal = document.getElementById('code-modal');
+    const title = document.getElementById('code-modal-title');
+    const desc = document.getElementById('code-modal-desc');
+    const textarea = document.getElementById('code-modal-textarea');
+
+    if (!modal) return;
+
+    if (mode === 'add') {
+        title.innerText = 'Add Raw SVG Element';
+        desc.innerText = '任意のSVGタグを入力してください。(例: <circle cx="50" cy="50" r="40" fill="red" />)';
+        textarea.value = '<circle cx="100" cy="100" r="50" fill="#ff0000" />'; // デフォルト値
+    } else if (mode === 'edit') {
+        if (!window.selectedElement) return;
+        title.innerText = 'Edit Raw Code';
+        desc.innerText = `編集中の要素: <${window.selectedElement.tagName}>`;
+        
+        let rawAttrs = `<${window.selectedElement.tagName}\n`;
+        for (const attr of window.selectedElement.attributes) {
+            rawAttrs += `  ${attr.name}="${attr.value}"\n`;
+        }
+        
+        if (window.selectedElement.innerHTML.trim()) {
+             rawAttrs += `>${window.selectedElement.innerHTML}</${window.selectedElement.tagName}>`;
+        } else {
+             rawAttrs += `/>`;
+        }
+        
+        textarea.value = rawAttrs;
+    }
+
+    modal.classList.add('is-open');
+    textarea.focus();
+};
+
+window.closeCodeModal = function() {
+    document.getElementById('code-modal').classList.remove('is-open');
+};
+
+window.applyCodeModal = function() {
+    const code = document.getElementById('code-modal-textarea').value;
+    
+    if (window.currentModalMode === 'add') {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(`<svg xmlns="http://www.w3.org/2000/svg">${code}</svg>`, "image/svg+xml");
+        
+        if (doc.querySelector("parsererror")) {
+            alert("構文エラーです。SVGタグを確認してください。");
+            return;
+        }
+        
+        const newElements = Array.from(doc.documentElement.children);
+        if (newElements.length === 0) return;
+
+        let targetParent = window.mainSvg;
+        if (window.selectedElement && window.selectedElement.tagName === 'g') {
+            targetParent = window.selectedElement;
+        }
+
+        newElements.forEach(el => {
+            targetParent.appendChild(el);
+        });
+
+        if(window.refreshLayerList) window.refreshLayerList();
+        window.selectElement(newElements[0]);
+
+    } else if (window.currentModalMode === 'edit') {
+        if (!window.selectedElement) return;
+        
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(`<svg xmlns="http://www.w3.org/2000/svg">${code}</svg>`, "image/svg+xml");
+        
+        if (doc.querySelector("parsererror")) {
+            alert("構文エラーです。");
+            return;
+        }
+
+        const newEl = doc.documentElement.firstElementChild;
+        if (!newEl) {
+             alert("要素が見つかりません。");
+             return;
+        }
+
+        const parent = window.selectedElement.parentNode;
+        parent.replaceChild(newEl, window.selectedElement);
+        
+        if(window.refreshLayerList) window.refreshLayerList();
+        window.selectElement(newEl);
+    }
+
+    window.closeCodeModal();
+};
+
 function addRawCodeEditor(el) {
     const group = document.createElement('div');
     group.className = 'property-group';
@@ -175,11 +271,18 @@ function addRawCodeEditor(el) {
         rawAttrs += `${attr.name}="${attr.value}" `;
     }
 
-    const label = `<label style="color:#fff; font-weight:bold;">Raw Code Editor (&lt;${el.tagName} ... /&gt;)</label>`;
+    const headerHtml = `
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:5px;">
+            <label style="color:#fff; font-weight:bold; margin:0;">Code Editor (&lt;${el.tagName}&gt;)</label>
+            <button onclick="openRawCodeModal('edit')" style="padding:2px 8px; font-size:0.8rem; background:#444;" title="拡大して編集">⛶ 拡大</button>
+        </div>
+    `;
+    
     const desc = `<div style="font-size:0.75rem; color:#888; margin-bottom:5px;">属性を直接編集できます。</div>`;
+    
     const textarea = `<textarea class="code-editor" style="height:120px;" oninput="window.updateRawCode(this.value)">${rawAttrs.trim()}</textarea>`;
 
-    group.innerHTML = `${label}${desc}${textarea}`;
+    group.innerHTML = `${headerHtml}${desc}${textarea}`;
     window.propContainer.appendChild(group);
 }
 
@@ -232,6 +335,7 @@ window.updateGroupTransform = function(axis, val) {
         window.selectedElement.setAttribute('transform', `${newTranslate} ${current}`);
     }
 };
+
 
 window.updateRawCode = function(rawString) {
     if (!window.selectedElement) return;

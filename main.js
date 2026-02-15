@@ -100,3 +100,37 @@ function setupCanvasEvents() {
         }
     });
 }
+
+// Cookie/LocalStorage Consent System
+
+window.addEventListener('DOMContentLoaded', () => {
+    checkCookieConsent();
+});
+
+function checkCookieConsent() {
+    const consent = localStorage.getItem('svgEditor_cookieAllowed');
+    if (consent !== 'true') {
+        const banner = document.getElementById('cookie-banner');
+        if (banner) {
+            banner.style.display = 'flex';
+        }
+    }
+}
+
+window.acceptCookies = function() {
+    localStorage.setItem('svgEditor_cookieAllowed', 'true');
+    hideCookieBanner();
+};
+
+function hideCookieBanner() {
+    const banner = document.getElementById('cookie-banner');
+    if (banner) {
+        banner.style.display = 'none';
+    }
+}
+
+// (開発用リセット)
+window.resetCookieConsent = function() {
+    localStorage.removeItem('svgEditor_cookieAllowed');
+    location.reload();
+};

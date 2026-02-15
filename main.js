@@ -101,6 +101,70 @@ function setupCanvasEvents() {
     });
 }
 
+// Panel Toggle System
+window.addEventListener('DOMContentLoaded', () => {
+    checkResponsiveMode();
+});
+
+window.addEventListener('resize', () => {
+    // リサイズ時にもチェックしたい場合、ここを有効化
+    // checkResponsiveMode();
+});
+
+function checkResponsiveMode() {
+    const w = window.innerWidth;
+    const leftPanel = document.getElementById('layer-container');
+    const rightPanel = document.getElementById('tool-container');
+
+    if (w <= 900) {
+        if (leftPanel) leftPanel.classList.add('closed');
+        if (rightPanel) rightPanel.classList.add('closed');
+        
+        updateToggleButtons();
+    }
+}
+
+window.togglePanel = function(side) {
+    const leftPanel = document.getElementById('layer-container');
+    const rightPanel = document.getElementById('tool-container');
+    const w = window.innerWidth;
+    const isMobile = w <= 900;
+
+    if (side === 'left' && leftPanel) {
+        const isClosing = !leftPanel.classList.contains('closed');
+        leftPanel.classList.toggle('closed');
+
+        if (isMobile && !isClosing && rightPanel) {
+            rightPanel.classList.add('closed');
+        }
+    } else if (side === 'right' && rightPanel) {
+        const isClosing = !rightPanel.classList.contains('closed');
+        rightPanel.classList.toggle('closed');
+        
+        if (isMobile && !isClosing && leftPanel) {
+            leftPanel.classList.add('closed');
+        }
+    }
+    
+    updateToggleButtons();
+};
+
+function updateToggleButtons() {
+    const leftPanel = document.getElementById('layer-container');
+    const rightPanel = document.getElementById('tool-container');
+    const leftBtn = document.getElementById('toggle-layer-btn');
+    const rightBtn = document.getElementById('toggle-prop-btn');
+
+    if(leftPanel && leftBtn) {
+        if(!leftPanel.classList.contains('closed')) leftBtn.classList.add('active');
+        else leftBtn.classList.remove('active');
+    }
+    if(rightPanel && rightBtn) {
+        if(!rightPanel.classList.contains('closed')) rightBtn.classList.add('active');
+        else rightBtn.classList.remove('active');
+    }
+}
+
 //  System Initialization and Consent Management
 
 window.addEventListener('DOMContentLoaded', () => {

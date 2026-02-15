@@ -175,7 +175,7 @@ function addRawCodeEditor(el) {
         rawAttrs += `${attr.name}="${attr.value}" `;
     }
 
-    const label = `<label style="color:#fff; font-weight:bold;">Code Editor (&lt;${el.tagName} ... /&gt;)</label>`;
+    const label = `<label style="color:#fff; font-weight:bold;">Raw Code Editor (&lt;${el.tagName} ... /&gt;)</label>`;
     const desc = `<div style="font-size:0.75rem; color:#888; margin-bottom:5px;">属性を直接編集できます。</div>`;
     const textarea = `<textarea class="code-editor" style="height:120px;" oninput="window.updateRawCode(this.value)">${rawAttrs.trim()}</textarea>`;
 

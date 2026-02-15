@@ -1,13 +1,54 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="ja" prefix="og: http://ogp.me/ns#">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SVG EDITOR POWERED BY MOTOYUCCHI</title>
+    
+    <title>SVG EDITOR Powered by MotoYucchi | 簡易Webベクター編集 & コード直接編集 (もとゆっち/モトユッチ)</title>
+    
+    <meta name="description" content="ブラウザ上で動作する開発中の簡易SVGエディタ。GUIでのレイヤー操作に加え、コードを直接編集(Raw Code)することで細かい微調整が可能。開発: MotoYucchi (もとゆっち/モトユッチ)。">
+    
+    <meta name="keywords" content="SVGエディタ, SVG Editor, ベクター画像, コード編集, 無料ツール, MotoYucchi, もとゆっち, モトユッチ, Webアプリ">
+    <meta name="author" content="MotoYucchi (もとゆっち)">
+    <meta name="robots" content="index, follow">
+
+    <meta property="og:title" content="SVG EDITOR Powered by MotoYucchi">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://pashatoku.com/"> <meta property="og:image" content="https://pashatoku.com/favicon.png">
+    <meta property="og:description" content="MotoYucchi（もとゆっち）が開発中のSVG編集ツール。簡易的な描画機能と、コード直接編集による微調整機能を搭載。">
+    <meta property="og:site_name" content="SVG EDITOR POWERED BY MOTOYUCCHI">
+    
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="SVG EDITOR by MotoYucchi">
+    <meta name="twitter:description" content="開発者: モトユッチ(MotoYucchi)。コード直接編集も可能な、開発中の簡易SVG作成ツール。">
+
     <link rel="icon" href="https://pashatoku.com/favicon.png">
+    <link rel="apple-touch-icon" href="https://pashatoku.com/favicon.png">
+
     <link rel="stylesheet" href="reset.css">
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="print.css">
+
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      "name": "SVG EDITOR POWERED BY MOTOYUCCHI",
+      "operatingSystem": "Browser",
+      "applicationCategory": "DesignApplication",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "JPY"
+      },
+      "author": {
+        "@type": "Person",
+        "name": "MotoYucchi",
+        "alternateName": ["もとゆっち", "モトユッチ"]
+      },
+      "description": "A browser-based simple SVG editing tool developed by MotoYucchi, featuring raw code editing capabilities."
+    }
+    </script>
 </head>
 <body>
 
@@ -38,6 +79,16 @@
 
     <div id="tool-container" class="right-panel"></div>
 </div>
+
+<footer style="font-size: 0.1px; color: transparent; height: 1px; overflow: hidden; position: absolute; top: -9999px;">
+    <h2>SVG EDITOR POWERED BY MOTOYUCCHI について</h2>
+    <p>
+        この「SVG EDITOR」は、開発者 <strong>MotoYucchi (もとゆっち / モトユッチ)</strong> が現在開発を行っている、ブラウザベースの簡易ベクター画像編集ツールです。
+        Rect, Path, Textなどの基本要素の配置や、レイヤーのドラッグ＆ドロップによる入れ替えに対応しています。
+        また、GUIだけでは難しい細かい調整のために、<strong>SVGコードを直接編集できる機能(Raw Code Editor)</strong>を搭載しており、
+        コードレベルでの柔軟な編集が可能です。開発中のツールのため、シンプルかつ軽量な動作を目指しています。
+    </p>
+</footer>
 
 <script src="main.js"></script>
 <script src="layer.js"></script>

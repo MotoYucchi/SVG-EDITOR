@@ -1,5 +1,5 @@
 /**
- * Automated Unit Tests for SVG Editor Studio Core Modules
+ * Automated Unit Tests for SVG Editor Studio Core & v2.1 Enhancements
  * Run via: node --test tests/core.test.mjs
  */
 
@@ -8,11 +8,7 @@ import assert from 'node:assert/strict';
 
 import {
   createDocument,
-  createVectorLayer,
-  createRasterLayer,
-  createGroupLayer,
   createVectorObject,
-  findLayerById,
   flattenLayers,
   findObjectById,
   toPixels,
@@ -31,11 +27,11 @@ import {
   CommandManager,
   createAddObjectCommand,
   createDeleteObjectsCommand,
-  createUpdateObjectsCommand,
-  createLayerTreeCommand
+  createUpdateObjectsCommand
 } from '../js/core/commands.js';
 import {
-  RasterStore
+  RasterStore,
+  RASTER_BRUSH_PRESETS
 } from '../js/core/raster-store.js';
 import {
   rgbToHsv,
@@ -49,6 +45,15 @@ import {
   exportWorkspaceZip,
   importWorkspaceZip
 } from '../js/core/renderer.js';
+import {
+  hasStorageConsent,
+  setStorageConsent,
+  savePreferencesToStorage,
+  saveAutosaveSnapshot
+} from '../js/core/storage.js';
+import {
+  applyMagneticSnap
+} from '../js/ui/custom-Controls.js';
 import { ICON_CATALOG } from '../js/ui/icons.js';
 
 test('1. DocumentModel creation, unit conversions, and layer tree traversal', () => {
@@ -56,7 +61,6 @@ test('1. DocumentModel creation, unit conversions, and layer tree traversal', ()
   assert.equal(doc.canvas.width, 1920);
   assert.equal(doc.canvas.height, 1080);
 
-  // Unit conversions (A4 210mm @ 300dpi = 2480px)
   const a4Px = toPixels(210, 'mm', 300);
   assert.equal(a4Px, 2480);
   const backToMm = fromPixels(2480, 'mm', 300);
@@ -66,7 +70,7 @@ test('1. DocumentModel creation, unit conversions, and layer tree traversal', ()
   assert.ok(mem > 10 && mem < 200);
 
   const flat = flattenLayers(doc.rootGroup);
-  assert.equal(flat.length, 2); // 1 Vector + 1 Raster layer
+  assert.equal(flat.length, 2);
   const vecLayer = flat.find(l => l.layer.type === 'vector').layer;
   assert.ok(vecLayer.objects.length >= 5);
 
@@ -86,14 +90,12 @@ test('2. Non-destructive Vector Shape Path generation & Boolean operations', () 
     assert.ok(bounds.width > 0 && bounds.height > 0);
   }
 
-  // Freehand Ramer-Douglas-Peucker simplification
   const rawPts = [
     { x: 0, y: 0 }, { x: 10, y: 1 }, { x: 20, y: 0 }, { x: 50, y: 40 }, { x: 100, y: 100 }
   ];
   const nodes = simplifyAndSmoothPoints(rawPts, 3.0, 0.35);
   assert.ok(nodes.length >= 2 && nodes.length < rawPts.length);
 
-  // Convert shape to editable Bezier path & Offset
   const star = createVectorObject('star', { x: 100, y: 100, width: 100, height: 100, sides: 5 });
   const asPath = convertObjectToPath(star);
   assert.equal(asPath.kind, 'path');
@@ -102,7 +104,6 @@ test('2. Non-destructive Vector Shape Path generation & Boolean operations', () 
   const offsetObj = offsetVectorObject(asPath, 10);
   assert.notEqual(offsetObj.id, asPath.id);
 
-  // Boolean Union / Subtract / Intersect / Exclude
   const rectA = createVectorObject('rect', { x: 100, y: 100, width: 100, height: 100 });
   const rectB = createVectorObject('rect', { x: 150, y: 150, width: 100, height: 100 });
   for (const op of ['union', 'subtract', 'intersect', 'exclude']) {
@@ -129,26 +130,21 @@ test('3. CommandManager Undo / Redo & History Arbitrary Jump', () => {
   cm.execute(createAddObjectCommand(vecLayer.id, obj2));
   assert.equal(vecLayer.objects.length, 2);
 
-  // Update object 1 position
   const beforeObj1 = structuredClone(vecLayer.objects[0]);
   const afterObj1 = structuredClone(vecLayer.objects[0]);
   afterObj1.x = 300;
   cm.execute(createUpdateObjectsCommand([beforeObj1], [afterObj1], 'Move Box 1'));
   assert.equal(vecLayer.objects[0].x, 300);
 
-  // Delete object 2
   cm.execute(createDeleteObjectsCommand([obj2.id], doc));
   assert.equal(vecLayer.objects.length, 1);
 
-  // Undo Delete -> obj2 returns
   cm.undo();
   assert.equal(vecLayer.objects.length, 2);
 
-  // Jump back to initial state (-1)
   cm.jumpTo(-1);
   assert.equal(vecLayer.objects.length, 0);
 
-  // Jump forward to step 2 (after Move Box 1)
   cm.jumpTo(2);
   assert.equal(vecLayer.objects.length, 2);
   assert.equal(vecLayer.objects[0].x, 300);
@@ -170,7 +166,6 @@ test('4. Color Space Conversions (RGB <-> HSV <-> CMYK) & Gamut Warning', () => 
   assert.equal(backRgb.r, 0);
   assert.equal(backRgb.g, 255);
 
-  // Neon green should trigger out-of-gamut warning in CMYK and Grayscale documents
   const cmykGamut = checkColorGamut('#00ff00', 'CMYK');
   assert.equal(cmykGamut.outOfGamut, true);
 
@@ -185,12 +180,10 @@ test('5. SVG Serialization & ZIP Workspace (.svgew) Round-Trip with Partial Reco
 
   assert.ok(svgString.includes('<svg xmlns="http://www.w3.org/2000/svg"'));
   assert.ok(svgString.includes('TestProject'));
-  assert.ok(warnings.length > 0); // CMYK conversion notice
+  assert.ok(warnings.length > 0);
 
-  // Build .svgew ZIP archive and re-import it
   const zipBytes = exportWorkspaceZip(doc, rasterStore);
   assert.ok(zipBytes.byteLength > 200);
-  // Check PK\x03\x04 ZIP header signature
   assert.equal(zipBytes[0], 0x50);
   assert.equal(zipBytes[1], 0x4b);
 
@@ -199,14 +192,54 @@ test('5. SVG Serialization & ZIP Workspace (.svgew) Round-Trip with Partial Reco
   assert.equal(restored.doc.canvas.width, doc.canvas.width);
 });
 
-test('6. Unified 24x24 Icon Catalog Audit (Reused vs New)', () => {
+test('6. Unified 24x24 Icon Catalog & Expanded Raster Presets Audit', () => {
   const entries = Object.entries(ICON_CATALOG);
   const reused = entries.filter(([, v]) => v.origin === 'reused');
   const newlyCreated = entries.filter(([, v]) => v.origin === 'new');
 
   assert.equal(reused.length, 6, 'Should contain 6 normalized reused icons from legacy');
-  assert.ok(newlyCreated.length >= 45, 'Should contain 45+ newly created 24x24 icons');
+  assert.ok(newlyCreated.length >= 55, 'Should contain 55+ newly created 24x24 icons');
   for (const [key, item] of entries) {
     assert.ok(item.body.includes('currentColor'), `Icon ${key} must use currentColor`);
   }
+
+  assert.ok(Object.keys(RASTER_BRUSH_PRESETS).length >= 7, 'Should include expanded raster brush presets including oil paint');
+});
+
+test('7. Magnetic Snap Slider Math (15° Rotation & 5/10% Zoom Attraction Spots)', () => {
+  // Rotation snaps to 15° increments (e.g. 14° -> 15°, -2° -> 0°, 43° -> 45°)
+  const rot0 = applyMagneticSnap(-2.4, -180, 180, 'rotation', false);
+  assert.equal(rot0.value, 0);
+  assert.equal(rot0.snapped, true);
+
+  const rot15 = applyMagneticSnap(14.2, -180, 180, 'rotation', false);
+  assert.equal(rot15.value, 15);
+  assert.equal(rot15.snapped, true);
+
+  const rot45 = applyMagneticSnap(43.5, -180, 180, 'rotation', false);
+  assert.equal(rot45.value, 45);
+  assert.equal(rot45.snapped, true);
+
+  // Zoom snaps to key spots (100%, 200%)
+  const zoom100 = applyMagneticSnap(96, 10, 800, 'zoom', false);
+  assert.equal(zoom100.value, 100);
+  assert.equal(zoom100.snapped, true);
+
+  // Fine adjustment with disableSnap = true does not snap
+  const fine = applyMagneticSnap(13.7, -180, 180, 'rotation', true);
+  assert.equal(fine.value, 13.7);
+  assert.equal(fine.snapped, false);
+});
+
+test('8. Strict Cookie & Storage Consent Enforcement', async () => {
+  setStorageConsent(false);
+  assert.equal(hasStorageConsent(), false);
+
+  // Saving preferences or autosave must return false and write nothing when consent is not granted
+  const prefSaved = savePreferencesToStorage({ theme: 'light' });
+  assert.equal(prefSaved, false);
+
+  const doc = createDocument({ withSample: false });
+  const autoSaved = await saveAutosaveSnapshot(doc, new RasterStore());
+  assert.equal(autoSaved, false);
 });

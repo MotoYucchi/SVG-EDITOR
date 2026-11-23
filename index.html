@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>SVG EDITOR Studio Powered by MotoYucchi | 直感ベクター＆ラスター描画ペイントツール</title>
-  <meta name="description" content="お絵かきソフトの直感的な描画感とベクターの非破壊編集を融合した次世代SVGエディタ。ベクター/ラスターレイヤー、筆圧ブラシ、パス演算、カスタム書き出し対応。開発: MotoYucchi。">
+  <meta name="description" content="SVG EDITOR POWERED BY MOTOYUCCHI は、ブラウザ上で動作する軽量なベクター＆ラスター画像編集ツールです。フレームワークを使用せず、ピュアなHTML、CSS、JavaScriptで構築されています。">
   <meta name="author" content="MotoYucchi (もとゆっち)">
   <meta property="og:title" content="SVG EDITOR Studio Powered by MotoYucchi">
   <meta property="og:type" content="website">
@@ -15,37 +15,172 @@
 </head>
 <body>
   <div id="app-shell" class="app-shell" data-handedness="right">
-    <!-- 1. Top Menu Bar -->
+    <!-- 1. Compact Desktop-App Style Top Menu Bar -->
     <header class="top-menubar" role="menubar">
-      <div class="brand-group">
+      <div class="menubar-left">
         <button id="btn-toggle-left" title="左ツールバー表示切替" aria-label="Toggle Left Toolbar"></button>
-        <img src="https://pashatoku.com/favicon.png" width="20" height="20" alt="Logo" onerror="this.style.display='none'">
-        <span data-i18n="app.title">SVG EDITOR Studio</span>
-        <span class="brand-badge">v2.0</span>
+        <div class="brand-group">
+          <img class="brand-logo" src="https://pashatoku.com/favicon.png" width="20" height="20" alt="Logo" draggable="false" onerror="this.style.display='none'">
+          <span data-i18n="app.title">SVG EDITOR</span>
+          <span class="brand-badge">v2.1</span>
+        </div>
+
+        <!-- Hover & Click Dropdown Menus -->
+        <nav class="app-menubar-nav" aria-label="Main Menu">
+          <!-- File Menu -->
+          <div class="menu-dropdown">
+            <button type="button" class="menu-trigger" data-i18n="menu.file">ファイル (File)</button>
+            <div class="menu-popup" role="menu">
+              <button type="button" id="btn-new-doc">
+                <span data-i18n="menu.new">新規作成...</span>
+                <span class="menu-kbd">Ctrl+N</span>
+              </button>
+              <button type="button" id="btn-open-file">
+                <span data-i18n="menu.open">開く (.svg / .svgew)...</span>
+                <span class="menu-kbd">Ctrl+O</span>
+              </button>
+              <button type="button" id="btn-save-workspace">
+                <span data-i18n="menu.saveWorkspace">ワークスペース保存 (.svgew)</span>
+                <span class="menu-kbd">Ctrl+S</span>
+              </button>
+              <div class="menu-sep"></div>
+              <button type="button" id="menu-export-svg">
+                <span data-i18n="menu.exportSvg">SVGクイック保存</span>
+                <span class="menu-kbd">SVG</span>
+              </button>
+              <button type="button" id="menu-export-png">
+                <span data-i18n="menu.exportPng">PNGクイック保存</span>
+                <span class="menu-kbd">PNG</span>
+              </button>
+              <button type="button" id="btn-custom-export">
+                <span data-i18n="menu.customExport">カスタム書き出し...</span>
+                <span class="menu-kbd">Ctrl+Shift+E</span>
+              </button>
+              <div class="menu-sep"></div>
+              <button type="button" id="btn-print-doc">
+                <span data-i18n="menu.print">印刷 (Print)...</span>
+                <span class="menu-kbd">Ctrl+P</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Edit Menu -->
+          <div class="menu-dropdown">
+            <button type="button" class="menu-trigger" data-i18n="menu.edit">編集 (Edit)</button>
+            <div class="menu-popup" role="menu">
+              <button type="button" id="menu-undo">
+                <span>元に戻す (Undo)</span>
+                <span class="menu-kbd">Ctrl+Z</span>
+              </button>
+              <button type="button" id="menu-redo">
+                <span>やり直す (Redo)</span>
+                <span class="menu-kbd">Ctrl+Y</span>
+              </button>
+              <div class="menu-sep"></div>
+              <button type="button" id="menu-dup-obj">
+                <span>選択オブジェクトを複製</span>
+                <span class="menu-kbd">Ctrl+D</span>
+              </button>
+              <button type="button" id="menu-del-obj" style="color:var(--danger)">
+                <span>選択オブジェクトを削除</span>
+                <span class="menu-kbd">Delete</span>
+              </button>
+              <div class="menu-sep"></div>
+              <button type="button" id="menu-open-prefs">
+                <span>環境設定・キーバインド・筆圧 (Preferences)...</span>
+                <span class="menu-kbd">Ctrl+,</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Canvas & Layer Menu -->
+          <div class="menu-dropdown">
+            <button type="button" class="menu-trigger" data-i18n="menu.layer">キャンバス & レイヤー</button>
+            <div class="menu-popup" role="menu">
+              <button type="button" id="btn-canvas-resize">
+                <span data-i18n="menu.canvasSize">キャンバスサイズ・解像度変更...</span>
+              </button>
+              <div class="menu-sep"></div>
+              <button type="button" id="menu-add-vec">
+                <span>新規ベクターレイヤーを追加</span>
+              </button>
+              <button type="button" id="menu-add-ras">
+                <span>新規ラスターレイヤーを追加</span>
+              </button>
+              <button type="button" id="menu-add-grp">
+                <span>新規グループフォルダを追加</span>
+              </button>
+              <div class="menu-sep"></div>
+              <button type="button" id="btn-rasterize-layer">
+                <span data-i18n="menu.rasterize">選択ベクターをラスター化 (複製)</span>
+              </button>
+              <button type="button" id="menu-clear-guides">
+                <span>ガイドラインをすべて消去</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- View Menu -->
+          <div class="menu-dropdown">
+            <button type="button" class="menu-trigger" data-i18n="menu.view">表示 (View)</button>
+            <div class="menu-popup" role="menu">
+              <button type="button" id="menu-zoom-fit">
+                <span>画面にフィット</span>
+                <span class="menu-kbd">Ctrl+0</span>
+              </button>
+              <button type="button" id="menu-zoom-100">
+                <span>100% 実寸表示</span>
+                <span class="menu-kbd">100%</span>
+              </button>
+              <button type="button" id="menu-rot-reset">
+                <span>キャンバス回転を 0° にリセット</span>
+                <span class="menu-kbd">0°</span>
+              </button>
+              <button type="button" id="menu-toggle-grid">
+                <span>グリッド表示 ON/OFF</span>
+              </button>
+              <button type="button" id="menu-toggle-theme">
+                <span>テーマ切替 (ダーク / ライト)</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Help Menu (TIPS, Shortcuts, GitHub, About) -->
+          <div class="menu-dropdown">
+            <button type="button" class="menu-trigger" data-i18n="menu.help">ヘルプ (Help)</button>
+            <div class="menu-popup" role="menu">
+              <a href="./tips.html" target="_blank" rel="noopener" class="menu-link-item">
+                <span data-i18n="menu.tips">使い方 & TIPS ガイドを開く</span>
+                <span class="menu-kbd">↗</span>
+              </a>
+              <button type="button" id="menu-shortcuts">
+                <span data-i18n="menu.shortcuts">ショートカット一覧 (?)</span>
+                <span class="menu-kbd">?</span>
+              </button>
+              <div class="menu-sep"></div>
+              <a href="https://github.com/MotoYucchi/SVG-EDITOR" target="_blank" rel="noopener" class="menu-link-item">
+                <span>GitHub リポジトリ (MotoYucchi/SVG-EDITOR)</span>
+                <span class="menu-kbd">↗</span>
+              </a>
+              <button type="button" id="menu-about">
+                <span data-i18n="menu.about">About SVG EDITOR</span>
+              </button>
+            </div>
+          </div>
+        </nav>
       </div>
 
-      <div class="menu-actions">
-        <button id="btn-new-doc" data-i18n="menu.new" title="新規作成 (Ctrl+N)">新規作成</button>
-        <button id="btn-open-file" data-i18n="menu.open" title="SVGまたはワークスペース(.svgew)を開く (Ctrl+O)">開く</button>
-        <button id="btn-save-workspace" data-i18n="menu.saveWorkspace" title="ワークスペース(.svgew)保存 (Ctrl+S)">ワークスペース保存</button>
-        <div class="menu-divider"></div>
-        <button id="btn-quick-svg" class="primary" data-i18n="menu.exportSvg" title="ワンクリックSVG書き出し">SVG保存</button>
-        <button id="btn-quick-png" data-i18n="menu.exportPng" title="ワンクリックPNG書き出し">PNG保存</button>
-        <button id="btn-custom-export" data-i18n="menu.customExport" title="詳細設定・プレビュー付きカスタム書き出し (Ctrl+Shift+E)">カスタム書き出し...</button>
-        <div class="menu-divider"></div>
+      <!-- Compact Right Quick-Action Buttons -->
+      <div class="menubar-right">
         <button id="btn-undo" title="元に戻す (Ctrl+Z)" disabled></button>
-        <button id="btn-redo" title="やり直す (Ctrl+Y / Ctrl+Shift+Z)" disabled></button>
+        <button id="btn-redo" title="やり直す (Ctrl+Y)" disabled></button>
         <div class="menu-divider"></div>
-        <button id="btn-canvas-resize" data-i18n="menu.canvasSize" title="キャンバスサイズ・解像度変更">サイズ変更</button>
-        <button id="btn-rasterize-layer" data-i18n="menu.rasterize" title="選択ベクターレイヤー/グループを高解像度ラスターレイヤーへ複製変換">ラスター化</button>
+        <button id="btn-quick-svg" class="primary" title="ワンクリックSVG保存">SVG保存</button>
+        <button id="btn-quick-png" title="ワンクリックPNG保存">PNG保存</button>
+        <button id="btn-quick-print" title="印刷 (Ctrl+P)"></button>
         <div class="menu-divider"></div>
-        <button id="btn-settings" title="環境設定 (筆圧カーブ・UIスケール・左利きモード)"></button>
-        <button id="btn-theme" title="テーマ切替 (ダーク / ライト)"></button>
-        <button id="btn-lang" title="言語切替 (日本語 / English)">JA/EN</button>
-        <a href="./icon-sheet.html" target="_blank" style="text-decoration:none;">
-          <button type="button" data-i18n="menu.icons" title="再利用/新規作成アイコンシート一覧を開く">Icons</button>
-        </a>
-        <button id="btn-help" title="ショートカット一覧とチュートリアル (?)"></button>
+        <button id="btn-settings" title="Preference / 環境設定 (言語・テーマ・キーバインド・液タブ筆圧/傾き)"></button>
+        <button id="btn-help" title="ショートカット & ヘルプ (?)"></button>
         <button id="btn-toggle-right" title="右ドックパネル表示切替" aria-label="Toggle Right Dock"></button>
       </div>
       <input type="file" id="hidden-file-input" accept=".svg,.svgew,.zip,image/*" style="display:none">
@@ -56,12 +191,12 @@
 
     <!-- 3. Main Workspace Row -->
     <div class="workspace-row">
-      <!-- Left Tool Palette -->
+      <!-- Left Tool Palette (Auto-expands/collapses Vector vs Raster according to active layer mode; Long-press opens Right Dock Tool Inspector Tab) -->
       <nav id="left-toolbar" class="left-toolbar" aria-label="Drawing Tools"></nav>
 
       <!-- Center Viewport with Horizontal & Vertical Rulers -->
       <main id="viewport-container" class="viewport-container">
-        <div id="ruler-corner" class="ruler-corner" title="クリックで単位切替 (px / mm / cm / inch) / ダブルクリックで原点リセット">px</div>
+        <div id="ruler-corner" class="ruler-corner" title="クリックで単位切替 (px / mm / cm / inch)">px</div>
         <canvas id="ruler-top" class="ruler-top" title="ドラッグして水平ガイドラインを作成"></canvas>
         <canvas id="ruler-left" class="ruler-left" title="ドラッグして垂直ガイドラインを作成"></canvas>
 
@@ -81,7 +216,7 @@
             <button id="hud-rotate-left" title="左に15°回転">↺</button>
             <button id="hud-rotate-reset" title="回転を0°にリセット">0°</button>
             <button id="hud-rotate-right" title="右に15°回転">↻</button>
-            <button id="hud-flip-view" title="表示を左右反転 (デッサン狂い確認用)">⇄反転</button>
+            <button id="hud-flip-view" title="表示を左右反転 (デッサン確認用)">⇄反転</button>
             <button id="hud-grid-toggle" title="グリッド表示切替">#Grid</button>
           </div>
         </div>
@@ -89,21 +224,39 @@
 
       <!-- Right Dock Panels -->
       <aside id="right-dock" class="right-dock" aria-label="Inspector Panels">
-        <!-- Panel 1: Navigator (Minimap) -->
+        <!-- Closable Dynamic Tool-Settings Tab (Opened by long-pressing any tool in the Left Toolbar) -->
+        <section class="dock-panel closable-tool-tab" id="panel-tool-inspector" style="display:none;">
+          <div class="dock-header" style="background:rgba(59,130,246,0.2);">
+            <span id="tool-inspector-title">🛠 ツール詳細設定</span>
+            <button type="button" id="btn-close-tool-inspector" title="このツール設定タブを閉じる" style="padding:1px 6px; font-size:0.78rem;">✕</button>
+          </div>
+          <div id="tool-inspector-body" class="dock-body"></div>
+        </section>
+
+        <!-- Panel 1: Navigator (Minimap with Click/Drag Red Viewport Frame & Magnetic Snap Sliders) -->
         <section class="dock-panel" id="panel-navigator">
           <div class="dock-header">
             <span data-i18n="panel.navigator">ナビゲーター</span>
-            <span id="nav-zoom-label" style="font-size:0.78rem; color:var(--text-muted)">100%</span>
+            <span style="display:flex; align-items:center; gap:6px;">
+              <span id="nav-zoom-label" style="font-size:0.76rem; color:var(--text-muted)">100%</span>
+              <span class="caret-ind">▼</span>
+            </span>
           </div>
           <div class="dock-body">
             <div style="display:flex; justify-content:center; background:var(--bg-input); border:1px solid var(--border-color); border-radius:4px; padding:4px;">
-              <canvas id="navigator-canvas" width="240" height="135" style="max-width:100%; cursor:pointer;"></canvas>
+              <canvas id="navigator-canvas" width="250" height="140" title="クリックまたはドラッグして表示範囲(赤枠)を直感的に移動" style="max-width:100%; cursor:grab;"></canvas>
             </div>
-            <div style="display:flex; gap:6px; align-items:center;">
-              <label style="font-size:0.75rem; color:var(--text-muted);">Zoom</label>
-              <input type="range" id="nav-zoom-slider" min="10" max="800" value="100" style="flex:1">
-              <label style="font-size:0.75rem; color:var(--text-muted);">Rot</label>
-              <input type="range" id="nav-rot-slider" min="-180" max="180" value="0" style="width:70px">
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              <div style="display:flex; gap:6px; align-items:center;">
+                <label style="font-size:0.74rem; color:var(--text-muted); width:42px;">Zoom</label>
+                <input type="range" id="nav-zoom-slider" data-snap="zoom" min="10" max="800" step="5" value="100" style="flex:1">
+                <span id="nav-zoom-val" style="font-size:0.74rem; width:40px; text-align:right;">100%</span>
+              </div>
+              <div style="display:flex; gap:6px; align-items:center;">
+                <label style="font-size:0.74rem; color:var(--text-muted); width:42px;">Rotate</label>
+                <input type="range" id="nav-rot-slider" data-snap="rotation" min="-180" max="180" step="1" value="0" style="flex:1">
+                <span id="nav-rot-val" style="font-size:0.74rem; width:40px; text-align:right;">0°</span>
+              </div>
             </div>
           </div>
         </section>
@@ -112,12 +265,15 @@
         <section class="dock-panel" id="panel-color">
           <div class="dock-header">
             <span data-i18n="panel.color">カラー & スウォッチ</span>
-            <select id="color-mode-select" style="font-size:0.75rem; padding:1px 4px;">
-              <option value="HSV">HSV環</option>
-              <option value="RGB">RGB</option>
-              <option value="HSL">HSL</option>
-              <option value="CMYK">CMYK</option>
-            </select>
+            <span style="display:flex; align-items:center; gap:6px;">
+              <select id="color-mode-select" style="font-size:0.74rem; padding:1px 4px;">
+                <option value="HSV">HSV環</option>
+                <option value="RGB">RGB</option>
+                <option value="HSL">HSL</option>
+                <option value="CMYK">CMYK</option>
+              </select>
+              <span class="caret-ind">▼</span>
+            </span>
           </div>
           <div class="dock-body">
             <div class="color-picker-layout">
@@ -162,15 +318,18 @@
           </div>
         </section>
 
-        <!-- Panel 3: Layers Tree (Vector / Raster / Group) -->
+        <!-- Panel 3: Layers Tree (with Live Mini-Thumbnails & Long-Press Magnified Preview) -->
         <section class="dock-panel" id="panel-layers">
           <div class="dock-header">
-            <span data-i18n="panel.layers">レイヤー</span>
-            <span id="active-layer-badge" class="layer-type-pill vector">Vector</span>
+            <span data-i18n="panel.layers">レイヤー (サムネ長押しで拡大)</span>
+            <span style="display:flex; align-items:center; gap:6px;">
+              <span id="active-layer-badge" class="layer-type-pill vector">Vector</span>
+              <span class="caret-ind">▼</span>
+            </span>
           </div>
           <div class="dock-body">
             <div style="display:flex; gap:6px; align-items:center;">
-              <select id="layer-blend-select" title="ブレンドモード" style="flex:1; font-size:0.8rem;">
+              <select id="layer-blend-select" title="ブレンドモード" style="flex:1; font-size:0.78rem;">
                 <option value="normal">通常 (Normal)</option>
                 <option value="multiply">乗算 (Multiply)</option>
                 <option value="screen">スクリーン (Screen)</option>
@@ -184,9 +343,9 @@
                 <option value="difference">差の絶対値 (Difference)</option>
                 <option value="exclusion">除外 (Exclusion)</option>
               </select>
-              <label style="font-size:0.75rem; color:var(--text-muted)">不透明度</label>
-              <input type="range" id="layer-opacity-slider" min="0" max="100" value="100" style="width:70px">
-              <span id="layer-opacity-val" style="font-size:0.75rem; width:32px;">100%</span>
+              <label style="font-size:0.74rem; color:var(--text-muted)">不透明度</label>
+              <input type="range" id="layer-opacity-slider" data-snap="percent" min="0" max="100" value="100" style="width:76px">
+              <span id="layer-opacity-val" style="font-size:0.74rem; width:32px;">100%</span>
             </div>
 
             <div class="layer-toolbar">
@@ -211,6 +370,7 @@
         <section class="dock-panel" id="panel-properties">
           <div class="dock-header">
             <span data-i18n="panel.properties">プロパティ & 変形</span>
+            <span class="caret-ind">▼</span>
           </div>
           <div id="properties-body" class="dock-body"></div>
         </section>
@@ -219,7 +379,10 @@
         <section class="dock-panel" id="panel-history">
           <div class="dock-header">
             <span data-i18n="panel.history">ヒストリー (履歴ジャンプ)</span>
-            <span id="history-count-label" style="font-size:0.75rem; color:var(--text-muted)">0件</span>
+            <span style="display:flex; align-items:center; gap:6px;">
+              <span id="history-count-label" style="font-size:0.75rem; color:var(--text-muted)">0件</span>
+              <span class="caret-ind">▼</span>
+            </span>
           </div>
           <div class="dock-body">
             <ul id="history-list" class="history-list"></ul>
@@ -239,11 +402,32 @@
       <div class="status-group">
         <span id="st-tool">Tool: 選択 (V)</span>
         <span id="st-layer">Layer: ベクターレイヤー 1</span>
-        <span id="st-pressure">筆圧: --</span>
+        <span id="st-pressure">筆圧: -- / 傾き: 0°</span>
         <span id="st-memory">Mem: ~18 MB</span>
-        <span id="st-save" style="color:var(--vector-badge)">● 自動保存済み</span>
+        <span id="st-save" style="cursor:pointer;" title="クリックでCookie/ストレージ保存設定を確認">● 未保存 (Cookie未同意)</span>
       </div>
     </footer>
+  </div>
+
+  <!-- Layer Thumbnail Long-Press Magnified Preview Lightbox (Click/Tap anywhere to close) -->
+  <div id="layer-preview-lightbox" class="layer-preview-lightbox" title="タップまたはクリックで閉じる">
+    <div class="layer-preview-card">
+      <div id="layer-preview-title" style="font-weight:700; font-size:0.95rem;">レイヤー拡大プレビュー</div>
+      <canvas id="layer-preview-big-canvas" width="540" height="360" style="max-width:82vw; max-height:68vh; border:1px solid var(--border-color); background:repeating-conic-gradient(#333 0% 25%, #222 0% 50%) 50% / 16px 16px;"></canvas>
+      <div style="font-size:0.8rem; color:var(--text-muted)">画面のどこかをタップまたはクリックすると閉じます</div>
+    </div>
+  </div>
+
+  <!-- Cookie & Local Storage Consent Banner -->
+  <div id="cookie-consent-bar" class="cookie-consent-bar" role="region" aria-label="Cookie and Storage Consent">
+    <div style="flex:1; font-size:0.82rem; line-height:1.45;">
+      <strong>🍪 Cookie・ローカルストレージ利用への同意確認</strong><br>
+      同意していただくと、環境設定（キーバインド・テーマ・筆圧設定）や作業中のワークスペースをブラウザ内に自動保存し、誤ってタブを閉じても復元できるようになります。<small style="color:var(--text-muted)">※同意がない場合、Cookieおよびストレージへの書き込みは一切行いません。</small>
+    </div>
+    <div style="display:flex; gap:8px; flex-shrink:0;">
+      <button type="button" id="btn-cookie-decline">同意しない (保存なし)</button>
+      <button type="button" id="btn-cookie-accept" class="primary">同意して自動保存を有効化</button>
+    </div>
   </div>
 
   <!-- Custom Right-Click / Long-Press Context Menu -->

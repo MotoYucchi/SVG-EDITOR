@@ -1,13 +1,18 @@
 /**
- * SVG EDITOR Studio — Main Application Controller
- * Integrates:
- * - Single DocumentModel & CommandManager (Unlimited Undo/Redo & History Jump)
- * - Strict Layer-Type Tool Guards (Vector tools disabled on Raster layers & vice versa with explanatory tooltips)
- * - Infinite Pan/Zoom (1%~6400%), Canvas Rotation, Mirror Flip, Rulers, Drag-Guides, Grid, Smart Alignment Guides
- * - Pointer Events Engine (Mouse, Pen Pressure/Tilt/CoalescedEvents, Touch 2-finger Pan/Zoom/Rotate & 2/3-finger Tap Undo/Redo)
- * - Full Vector Tools (10 Shapes, Bezier Pen, Freehand Simplifier, Pressure Vector Brush, Boolean Ops, Text with Vertical/Path/IME)
- * - Full Raster Tools (G-Pen/Pencil/Marker/Airbrush/Watercolor, Eraser, Flood Fill Bucket, Gradient, Blur/Smudge, Stamp)
- * - Vector -> Raster High-DPI Conversion & Native ZIP Workspace (.svgew) Import/Export + Auto-Save
+ * SVG EDITOR Studio v2.1 — Main Application Controller
+ * Integrates all new UX & functional enhancements:
+ * 1. Bespoke SVG/HTML/JS Magnetic Snap Sliders (15° Rotate snap, 5/10% Zoom snap) & Custom Scrollbars
+ * 2. Interactive Navigator Minimap (Click/Tap/Drag moves the red viewport frame directly)
+ * 3. Per-Layer Live Mini Thumbnail Previews + Long-Press Magnified Lightbox (Click/Tap to close)
+ * 4. Marquee Rectangular Drag Selection on Select Tool (`V`) + Delete/Backspace shortcut
+ * 5. Strict Cookie/Storage Consent Guard (Zero writes when unconsented; full workspace & prefs auto-restore after consent)
+ * 6. Compact Desktop-App Dropdown Menubar (Hover/Click/Tap) + Help > About, GitHub, TIPS link
+ * 7. Full Preferences (Language, Theme, Keybinding Customizer with Ctrl/Cmd/Shift/Alt, Pen Pressure/Tilt Calibration)
+ * 8. Print Canvas Feature (Ctrl+P / Menu / Toolbar)
+ * 9. Auto-Expanding / Collapsing Left Toolbar sections based on active Layer Mode (Vector vs Raster)
+ * 10. Expanded 15 Raster Tools (G-Pen, Maru-Pen, Pencil, Chisel Marker, Airbrush, Watercolor, Oil Paint, Eraser, Bucket, Gradient, Blur, Smudge, Dodge/Burn, Deco Stamp, Line/Shape, Symmetry Mirror, Spatter)
+ * 11. Configurable Toolbar Long-Press (default 5s) -> Opens a Closable Tool Settings Tab at the top of the Right Dock
+ * 12. Strict Image & Icon Copy / Drag / ContextMenu Protection
  */
 
 import {
@@ -32,7 +37,6 @@ import {
   convertObjectToPath,
   offsetVectorObject,
   performBooleanOperation,
-  f,
   DEG_TO_RAD,
   RAD_TO_DEG
 } from './core/geometry.js';
@@ -59,7 +63,6 @@ import {
   rgbToHex,
   rgbToHsv,
   hsvToRgb,
-  rgbToHsl,
   rgbToCmyk,
   cmykToRgb,
   checkColorGamut
@@ -74,26 +77,31 @@ import {
   importWorkspaceZip
 } from './core/renderer.js';
 import {
+  hasStorageConsent,
+  setStorageConsent,
+  savePreferencesToStorage,
+  loadPreferencesFromStorage,
   saveAutosaveSnapshot,
   loadAutosaveSnapshot
 } from './core/storage.js';
 import { t, getLang, setLang } from './core/i18n.js';
 import { renderIcon } from './ui/icons.js';
+import { upgradeCustomSliders, setSliderValue } from './ui/custom-Controls.js';
 import {
   showNewDocumentModal,
   showCanvasResizeModal,
   showCustomExportModal,
   showShortcutsModal,
-  showPreferencesModal
+  showPreferencesModal,
+  showAboutModal
 } from './ui/modals.js';
 
 /**
- * Complete Tool Catalog with Layer Compatibility Rules
- * scope: 'common' | 'vector' | 'raster'
+ * Complete Tool Catalog (Common + Vector + 15 Rich Raster Tools)
  */
 export const TOOL_DEFINITIONS = [
-  // Common Tools
-  { id: 'select', scope: 'common', icon: 'tool-select', shortcut: 'V', labelJa: '選択・変形 (V)', labelEn: 'Select & Transform (V)' },
+  // Common Tools (7)
+  { id: 'select', scope: 'common', icon: 'tool-select', shortcut: 'V', labelJa: '選択・矩形範囲変形 (V)', labelEn: 'Select & Marquee (V)' },
   { id: 'node', scope: 'vector', icon: 'tool-node', shortcut: 'A', labelJa: 'ノード編集 (A)', labelEn: 'Node Edit (A)' },
   { id: 'lasso', scope: 'common', icon: 'tool-lasso', shortcut: 'L', labelJa: '投げ縄選択 (L)', labelEn: 'Lasso Select (L)' },
   { id: 'pan', scope: 'common', icon: 'tool-pan', shortcut: 'H', labelJa: '手のひらパン (H / Space)', labelEn: 'Pan Canvas (H)' },
@@ -101,7 +109,7 @@ export const TOOL_DEFINITIONS = [
   { id: 'eyedropper', scope: 'common', icon: 'tool-eyedropper', shortcut: 'I', labelJa: 'スポイト (I)', labelEn: 'Eyedropper (I)' },
   { id: 'measure', scope: 'common', icon: 'tool-measure', shortcut: 'M', labelJa: '定規計測 (M)', labelEn: 'Measure Ruler (M)' },
 
-  // Vector Tools
+  // Vector Tools (15)
   { id: 'pen', scope: 'vector', icon: 'tool-pen', shortcut: 'P', labelJa: 'ベジェペン (P)', labelEn: 'Bezier Pen (P)' },
   { id: 'freehand', scope: 'vector', icon: 'tool-freehand', shortcut: 'N', labelJa: 'フリーハンドパス (N)', labelEn: 'Freehand Path (N)' },
   { id: 'vector-brush', scope: 'vector', icon: 'tool-vector-brush', shortcut: 'B', labelJa: '筆圧ベクターブラシ (B)', labelEn: 'Vector Brush (B)' },
@@ -118,14 +126,24 @@ export const TOOL_DEFINITIONS = [
   { id: 'shape-callout', scope: 'vector', icon: 'shape-callout', shortcut: '', labelJa: '吹き出しツール', labelEn: 'Speech Callout', shapeKind: 'callout' },
   { id: 'text', scope: 'vector', icon: 'tool-text', shortcut: 'T', labelJa: 'テキストツール (T)', labelEn: 'Text (T)' },
 
-  // Raster Tools
-  { id: 'raster-pen', scope: 'raster', icon: 'raster-pen', shortcut: '', labelJa: 'ラスターペン (Gペン/丸ペン/鉛筆)', labelEn: 'Raster Pen (G-Pen/Pencil)' },
-  { id: 'raster-airbrush', scope: 'raster', icon: 'raster-airbrush', shortcut: '', labelJa: 'エアブラシ / 水彩 / マーカー', labelEn: 'Airbrush / Watercolor' },
+  // Expanded Raster Tools (16 full-featured paint tools!)
+  { id: 'raster-gpen', scope: 'raster', icon: 'raster-pen', shortcut: '', labelJa: 'Gペン (強弱インク)', labelEn: 'G-Pen Ink', preset: 'gpen' },
+  { id: 'raster-marupen', scope: 'raster', icon: 'raster-marupen', shortcut: '', labelJa: '丸ペン (極細線画)', labelEn: 'Mapping Pen', preset: 'marupen' },
+  { id: 'raster-pencil', scope: 'raster', icon: 'raster-pencil', shortcut: '', labelJa: 'デッサン鉛筆 (傾き対応)', labelEn: 'Sketch Pencil', preset: 'pencil' },
+  { id: 'raster-marker', scope: 'raster', icon: 'raster-marker', shortcut: '', labelJa: 'コピックマーカー / 平筆', labelEn: 'Chisel Marker', preset: 'marker' },
+  { id: 'raster-airbrush', scope: 'raster', icon: 'raster-airbrush', shortcut: '', labelJa: 'ソフトエアブラシ', labelEn: 'Soft Airbrush', preset: 'airbrush' },
+  { id: 'raster-watercolor', scope: 'raster', icon: 'raster-watercolor', shortcut: '', labelJa: '透明水彩ブラシ', labelEn: 'Watercolor', preset: 'watercolor' },
+  { id: 'raster-oil', scope: 'raster', icon: 'raster-oil', shortcut: '', labelJa: '厚塗り油彩ブラシ', labelEn: 'Thick Oil Paint', preset: 'oil' },
   { id: 'raster-eraser', scope: 'raster', icon: 'raster-eraser', shortcut: 'E', labelJa: 'ラスター消しゴム (E)', labelEn: 'Raster Eraser (E)' },
   { id: 'raster-bucket', scope: 'raster', icon: 'raster-bucket', shortcut: 'G', labelJa: 'バケツ塗りつぶし (G)', labelEn: 'Flood Fill Bucket (G)' },
   { id: 'raster-gradient', scope: 'raster', icon: 'raster-gradient', shortcut: '', labelJa: 'ラスターグラデーション', labelEn: 'Raster Gradient' },
-  { id: 'raster-blur', scope: 'raster', icon: 'raster-blur', shortcut: '', labelJa: 'ぼかし / 指先ツール', labelEn: 'Blur / Smudge' },
-  { id: 'raster-stamp', scope: 'raster', icon: 'raster-stamp', shortcut: 'S', labelJa: 'スタンプツール (S)', labelEn: 'Pattern Stamp (S)' }
+  { id: 'raster-blur', scope: 'raster', icon: 'raster-blur', shortcut: '', labelJa: 'ぼかしブラシ', labelEn: 'Blur Brush' },
+  { id: 'raster-smudge', scope: 'raster', icon: 'raster-smudge', shortcut: '', labelJa: '指先・色混ぜツール', labelEn: 'Smudge Finger' },
+  { id: 'raster-dodge', scope: 'raster', icon: 'raster-dodge', shortcut: '', labelJa: '覆い焼き(発光) / 焼き込み(暗)', labelEn: 'Dodge / Burn' },
+  { id: 'raster-stamp', scope: 'raster', icon: 'raster-stamp', shortcut: 'S', labelJa: 'デコレーションスタンプ (S)', labelEn: 'Deco Stamp (S)' },
+  { id: 'raster-line', scope: 'raster', icon: 'raster-line', shortcut: '', labelJa: 'ラスター直線 / 矩形図形', labelEn: 'Raster Line & Rect' },
+  { id: 'raster-symmetry', scope: 'raster', icon: 'raster-symmetry', shortcut: '', labelJa: '対称定規ミラーブラシ', labelEn: 'Symmetry Mirror Brush' },
+  { id: 'raster-noise', scope: 'raster', icon: 'raster-noise', shortcut: '', labelJa: 'スパッタリング・砂目スプレー', labelEn: 'Spatter Spray' }
 ];
 
 export class SVGEditorApp {
@@ -133,35 +151,41 @@ export class SVGEditorApp {
     this.rasterStore = new RasterStore();
     this.doc = createDocument({ withSample: true });
     this.imageCache = new Map();
-
-    // Ensure initial raster buffers exist
     this._ensureAllRasterBuffers();
 
-    // Select topmost vector layer by default
     const topLayers = flattenLayers(this.doc.rootGroup);
     const defaultVec = topLayers.find(l => l.layer.type === 'vector') || topLayers[0];
     this.activeLayerId = defaultVec ? defaultVec.layer.id : null;
     /** @type {Set<string>} */
     this.selectedObjectIds = new Set();
 
-    // Viewport state (Pan, Zoom 1%~6400%, Rotation, Horizontal Flip)
+    // Viewport state
     this.viewport = {
       panX: 80,
       panY: 50,
-      zoom: 0.85,
-      rotation: 0, // degrees
+      zoom: 1.0,
+      rotation: 0,
       flipX: false
     };
 
-    // Active Tool & Shared Paint / Brush Settings
     this.activeToolId = 'select';
     this.spacePanActive = false;
+
+    // Toolbar collapsible state: auto-Tracks active layer mode ('vector' vs 'raster')
+    this.toolbarCollapsed = {
+      common: false,
+      vector: false,
+      raster: true
+    };
+
+    // Closable Right-Dock Tool Inspector Tab state (opened via long-pressing a tool button)
+    this.inspectedToolId = null;
 
     this.paintState = {
       mainColor: '#3b82f6',
       subColor: '#1e293b',
-      activeWell: 'main', // 'main' | 'sub'
-      fillType: 'solid',  // 'none' | 'solid' | 'gradient' | 'pattern'
+      activeWell: 'main',
+      fillType: 'solid',
       gradientId: 'grad_default_sky',
       patternId: 'pat_dots',
       strokeWidth: 3,
@@ -170,49 +194,54 @@ export class SVGEditorApp {
     };
 
     this.toolOptions = {
-      // Vector shape defaults
       cornerRadius: 20,
       polygonSides: 5,
       starInnerRatio: 0.45,
       spiralTurns: 3,
       arcStartAngle: 0,
       arcEndAngle: 270,
-      // Freehand & Vector Brush
       smoothingTolerance: 2.5,
       smoothingFactor: 0.35,
       brushSize: 16,
-      // Raster Brush settings
       rasterPreset: 'gpen',
       hardness: 0.9,
       flow: 1.0,
+      spacing: 0.1,
       bucketTolerance: 28,
       bucketContiguous: true,
-      blurMode: 'blur', // 'blur' | 'smudge'
-      // Text defaults
+      blurMode: 'blur',
+      dodgeMode: 'lighter', // 'lighter' (Dodge) | 'multiply' (Burn)
+      stampShape: 'star',   // 'star' | 'heart' | 'sparkle'
+      symmetryMode: 'horizontal', // 'horizontal' | 'quad'
+      rasterShapeKind: 'line',    // 'line' | 'rect'
       fontSize: 36,
       fontFamily: '"Noto Sans JP", "Hiragino Sans", sans-serif',
       verticalText: false
     };
 
     this.preferences = {
+      theme: 'dark',
+      lang: 'ja',
+      enablePressure: true,
+      enableTilt: true,
       pressureGamma: 1.0,
+      minPressure: 0.05,
       stabilizer: 4,
       uiScale: 1.0,
-      handedness: 'right'
+      handedness: 'right',
+      longPressSeconds: 5.0
     };
 
-    // Active interaction session state
-    this.interaction = null;
-    this.hoverWorldPos = { x: 0, y: 0, pressure: 0 };
-    this.smartGuides = []; // [{ axis: 'x'|'y', pos: number }]
-    this.measureLine = null;
-    this.activePenObject = null; // For multi-click Bezier Pen tool
+    this.keybindings = this.getDefaultKeybindings();
 
-    // Touch Gesture Tracking (2-finger pan/zoom/rotate, 2/3-finger tap Undo/Redo)
+    this.interaction = null;
+    this.hoverWorldPos = { x: 0, y: 0, pressure: 0, tiltX: 0, tiltY: 0 };
+    this.smartGuides = [];
+    this.measureLine = null;
+    this.activePenObject = null;
     this.activePointers = new Map();
     this.touchGesture = null;
 
-    // Background Web Worker for SVG Optimization
     this.exportWorker = null;
     try {
       this.exportWorker = new Worker(new URL('./workers/export-worker.js', import.meta.url), { type: 'module' });
@@ -220,10 +249,67 @@ export class SVGEditorApp {
       this.exportWorker = null;
     }
 
-    // Command Manager
     this.commands = new CommandManager(this.doc, this.rasterStore, () => {
       this.onDocumentChanged();
     });
+  }
+
+  getDefaultKeybindings() {
+    return {
+      'tool:select': 'V',
+      'tool:node': 'A',
+      'tool:lasso': 'L',
+      'tool:pan': 'H',
+      'tool:zoom': 'Z',
+      'tool:eyedropper': 'I',
+      'tool:measure': 'M',
+      'tool:pen': 'P',
+      'tool:freehand': 'N',
+      'tool:vector-brush': 'B',
+      'tool:shape-rect': 'U',
+      'tool:shape-ellipse': 'O',
+      'tool:text': 'T',
+      'tool:raster-eraser': 'E',
+      'tool:raster-bucket': 'G',
+      'tool:raster-stamp': 'S',
+      'action:undo': 'Ctrl+Z',
+      'action:redo': 'Ctrl+Y',
+      'action:delete': 'Delete',
+      'action:duplicate': 'Ctrl+D',
+      'action:swapColors': 'X',
+      'action:saveWorkspace': 'Ctrl+S',
+      'action:print': 'Ctrl+P',
+      'action:zoomFit': 'Ctrl+0'
+    };
+  }
+
+  getBindableActions() {
+    return [
+      { key: 'tool:select', label: '選択・範囲変形ツール' },
+      { key: 'tool:node', label: 'ノード編集ツール' },
+      { key: 'tool:lasso', label: '投げ縄選択ツール' },
+      { key: 'tool:pan', label: '手のひらパン' },
+      { key: 'tool:zoom', label: 'ズームツール' },
+      { key: 'tool:eyedropper', label: 'スポイトツール' },
+      { key: 'tool:measure', label: '定規計測ツール' },
+      { key: 'tool:pen', label: 'ベジェペンツール' },
+      { key: 'tool:freehand', label: 'フリーハンドパス' },
+      { key: 'tool:vector-brush', label: '筆圧ベクターブラシ' },
+      { key: 'tool:shape-rect', label: '矩形ツール' },
+      { key: 'tool:shape-ellipse', label: '楕円ツール' },
+      { key: 'tool:text', label: 'テキストツール' },
+      { key: 'tool:raster-eraser', label: 'ラスター消しゴム' },
+      { key: 'tool:raster-bucket', label: 'バケツ塗りつぶし' },
+      { key: 'tool:raster-stamp', label: 'デコスタンプ' },
+      { key: 'action:undo', label: '元に戻す (Undo)' },
+      { key: 'action:redo', label: 'やり直す (Redo)' },
+      { key: 'action:delete', label: '選択オブジェクトを削除' },
+      { key: 'action:duplicate', label: '選択オブジェクトを複製' },
+      { key: 'action:swapColors', label: 'メイン/サブカラー入替' },
+      { key: 'action:saveWorkspace', label: 'ワークスペース保存 (.svgew)' },
+      { key: 'action:print', label: '印刷 (Print)' },
+      { key: 'action:zoomFit', label: '画面にフィット表示' }
+    ];
   }
 
   async init() {
@@ -234,30 +320,74 @@ export class SVGEditorApp {
     this.rulerLeft = document.getElementById('ruler-left');
     this.navCanvas = document.getElementById('navigator-canvas');
 
+    this._installImageCopyProtection();
     this._populateTopIcons();
+
+    // Load persisted preferences and workspace ONLY if Cookie/Storage consent was previously granted
+    if (hasStorageConsent()) {
+      const savedPrefs = loadPreferencesFromStorage();
+      if (savedPrefs) {
+        if (savedPrefs.preferences) Object.assign(this.preferences, savedPrefs.preferences);
+        if (savedPrefs.keybindings) Object.assign(this.keybindings, savedPrefs.keybindings);
+        document.documentElement.setAttribute('data-theme', this.preferences.theme || 'dark');
+        document.documentElement.style.setProperty('--ui-scale', String(this.preferences.uiScale || 1));
+        document.getElementById('app-shell').setAttribute('data-handedness', this.preferences.handedness || 'right');
+        setLang(this.preferences.lang || 'ja');
+      }
+      const savedSession = await loadAutosaveSnapshot(this.rasterStore);
+      if (savedSession && savedSession.doc && savedSession.doc.rootGroup) {
+        this.doc = savedSession.doc;
+        this._ensureAllRasterBuffers();
+        const flat = flattenLayers(this.doc.rootGroup);
+        this.activeLayerId = flat[0]?.layer.id || null;
+        this.commands.setDocument(this.doc);
+        if (savedSession.viewport) {
+          Object.assign(this.viewport, savedSession.viewport);
+        }
+      }
+    }
+
+    this.updateCookieConsentBanner();
+    this.syncToolbarCollapseToActiveLayer();
     this.renderToolbar();
     this.renderContextBar();
     this.initColorPickerUI();
     this.bindTopMenuEvents();
     this.bindViewportEvents();
+    this.bindNavigatorEvents();
     this.bindLayerPanelEvents();
     this.bindKeyboardShortcuts();
 
-    // Resize observer for responsive canvas sizing
+    // Upgrade static range sliders into bespoke SVG magnetic snap sliders
+    upgradeCustomSliders(document);
+
     const ro = new ResizeObserver(() => this.resizeViewportCanvases());
     ro.observe(this.stageEl);
     this.resizeViewportCanvases();
-    this.zoomToFit();
-
-    // Check IndexedDB Auto-Save recovery
-    const saved = await loadAutosaveSnapshot(this.rasterStore);
-    if (saved && saved.doc && saved.doc.rootGroup) {
-      // Non-intrusive toast offering 1-click session restore
-      this.savedSessionBackup = saved;
+    if (!hasStorageConsent()) {
+      this.zoomToFit();
     }
 
     this.refreshAllPanels();
     this.requestRender();
+  }
+
+  /**
+   * Prevents right-click image menu, drag-and-drop copying, or saving of app icons & images
+   */
+  _installImageCopyProtection() {
+    document.addEventListener('dragstart', (e) => {
+      const t = e.target;
+      if (t && (t.tagName === 'IMG' || t.tagName === 'SVG' || t.closest?.('svg'))) {
+        e.preventDefault();
+      }
+    });
+    document.addEventListener('contextmenu', (e) => {
+      const t = e.target;
+      if (t && (t.tagName === 'IMG' || t.tagName === 'SVG' || t.closest?.('svg') || t.closest?.('.tool-btn'))) {
+        e.preventDefault();
+      }
+    });
   }
 
   _populateTopIcons() {
@@ -269,9 +399,51 @@ export class SVGEditorApp {
     setBtnIcon('btn-toggle-right', 'layout-sidebar-right');
     setBtnIcon('btn-undo', 'undo');
     setBtnIcon('btn-redo', 'redo');
+    setBtnIcon('btn-quick-print', 'print');
     setBtnIcon('btn-settings', 'settings');
-    setBtnIcon('btn-theme', 'theme-toggle');
     setBtnIcon('btn-help', 'help');
+  }
+
+  updateCookieConsentBanner() {
+    const bar = document.getElementById('cookie-consent-bar');
+    const saveEl = document.getElementById('st-save');
+    const consented = hasStorageConsent();
+
+    if (bar) {
+      bar.classList.toggle('visible', !consented && !this._consentDismissedForSession);
+      const acceptBtn = document.getElementById('btn-cookie-accept');
+      const declineBtn = document.getElementById('btn-cookie-decline');
+      if (acceptBtn) {
+        acceptBtn.onclick = async () => {
+          setStorageConsent(true);
+          savePreferencesToStorage({ preferences: this.preferences, keybindings: this.keybindings });
+          await saveAutosaveSnapshot(this.doc, this.rasterStore, this.viewport);
+          bar.classList.remove('visible');
+          this.updateCookieConsentBanner();
+          this.showToast('Cookie・ストレージ保存を有効化しました（ワークスペースと設定が自動保持されます）');
+        };
+      }
+      if (declineBtn) {
+        declineBtn.onclick = () => {
+          this._consentDismissedForSession = true;
+          setStorageConsent(false);
+          bar.classList.remove('visible');
+          this.updateCookieConsentBanner();
+          this.showToast('同意なしモード: Cookieおよびストレージへの保存を一切行いません');
+        };
+      }
+    }
+
+    if (saveEl) {
+      if (consented) {
+        saveEl.textContent = `● ${t('status.saved')}`;
+        saveEl.style.color = 'var(--vector-badge)';
+      } else {
+        saveEl.textContent = `● ${t('status.noConsent')}`;
+        saveEl.style.color = 'var(--text-muted)';
+      }
+      saveEl.onclick = () => showPreferencesModal(this, 'general');
+    }
   }
 
   _ensureAllRasterBuffers() {
@@ -294,11 +466,20 @@ export class SVGEditorApp {
   }
 
   /**
-   * Evaluates whether a tool is compatible with the currently selected layer.
-   * Implements user-confirmed strict requirement:
-   * Vector tools are disabled on Raster/Group layers and Raster tools are disabled on Vector/Group layers,
-   * with a clear tooltip explaining why.
+   * Auto-expands Vector tools and collapses Raster tools when a Vector layer is active (and vice versa!)
    */
+  syncToolbarCollapseToActiveLayer() {
+    const layer = this.getActiveLayer();
+    if (!layer) return;
+    if (layer.type === 'vector') {
+      this.toolbarCollapsed.vector = false;
+      this.toolbarCollapsed.raster = true;
+    } else if (layer.type === 'raster') {
+      this.toolbarCollapsed.vector = true;
+      this.toolbarCollapsed.raster = false;
+    }
+  }
+
   getToolCompatibility(toolDef) {
     const layer = this.getActiveLayer();
     if (toolDef.scope === 'common') {
@@ -332,17 +513,28 @@ export class SVGEditorApp {
     }
     this.activeToolId = toolId;
     this.activePenObject = null;
+
+    // If the tool has an associated raster brush preset, apply its defaults
+    if (def.preset && RASTER_BRUSH_PRESETS[def.preset]) {
+      const p = RASTER_BRUSH_PRESETS[def.preset];
+      this.toolOptions.rasterPreset = def.preset;
+      this.toolOptions.brushSize = p.size;
+      this.toolOptions.hardness = p.hardness;
+      this.toolOptions.spacing = p.spacing;
+      this.paintState.opacity = p.opacity;
+    }
+
     this.renderToolbar();
     this.renderContextBar();
+    if (this.inspectedToolId) {
+      this.openToolInspectorTab(toolId);
+    }
     this.updateStatusBar();
     this.requestRender();
   }
 
-  /**
-   * Automatically switches to the safe 'select' tool if the user switches to a layer
-   * that is incompatible with the currently active drawing tool.
-   */
   validateActiveToolForLayer() {
+    this.syncToolbarCollapseToActiveLayer();
     const currentDef = TOOL_DEFINITIONS.find(t => t.id === this.activeToolId);
     if (!currentDef) return;
     const compat = this.getToolCompatibility(currentDef);
@@ -354,14 +546,15 @@ export class SVGEditorApp {
   }
 
   // ============================================================================
-  // Left Toolbar & Top Context Bar Rendering
+  // Left Toolbar (Collapsible by Layer Mode + Configurable Long-Press -> Right Dock Tool Tab)
   // ============================================================================
 
   renderToolbar() {
     const container = document.getElementById('left-toolbar');
     if (!container) return;
 
-    const renderGroup = (title, cssClass, scopeFilter) => {
+    const renderSection = (sectionKey, title, cssClass, scopeFilter) => {
+      const isCollapsed = Boolean(this.toolbarCollapsed[sectionKey]);
       const tools = TOOL_DEFINITIONS.filter(scopeFilter);
       const buttons = tools.map(tool => {
         const compat = this.getToolCompatibility(tool);
@@ -371,7 +564,10 @@ export class SVGEditorApp {
           : tool.scope === 'raster'
             ? `<span class="tool-badge r">R</span>`
             : '';
-        const tooltip = compat.enabled ? `${tool.labelJa}` : `【無効】${compat.reason}`;
+        const lpSec = this.preferences.longPressSeconds ?? 5;
+        const tooltip = compat.enabled
+          ? `${tool.labelJa} (長押し${lpSec}秒で右ドックに詳細設定を表示)`
+          : `【無効】${compat.reason}`;
         return `
           <button
             type="button"
@@ -384,22 +580,144 @@ export class SVGEditorApp {
           </button>
         `;
       }).join('');
-      return `<div class="tool-section-label ${cssClass}">${title}</div>${buttons}`;
+
+      return `
+        <button type="button" class="tool-section-header ${cssClass}" data-toggle-sec="${sectionKey}" title="クリックで ${title} ツール群を展開/折りたたみ">
+          <span>${isCollapsed ? '▸' : '▾'}</span>
+          <span>${title}</span>
+        </button>
+        <div class="tool-section-group ${isCollapsed ? 'collapsed' : ''}">
+          ${buttons}
+        </div>
+      `;
     };
 
     container.innerHTML = [
-      renderGroup('Common', '', t => t.scope === 'common'),
-      renderGroup('Vector', 'vec', t => t.scope === 'vector'),
-      renderGroup('Raster', 'ras', t => t.scope === 'raster')
+      renderSection('common', 'Common', '', t => t.scope === 'common'),
+      renderSection('vector', 'Vector', 'vec', t => t.scope === 'vector'),
+      renderSection('raster', 'Raster', 'ras', t => t.scope === 'raster')
     ].join('');
 
+    container.querySelectorAll('[data-toggle-sec]').forEach(hdr => {
+      hdr.onclick = () => {
+        const key = hdr.getAttribute('data-toggle-sec');
+        this.toolbarCollapsed[key] = !this.toolbarCollapsed[key];
+        this.renderToolbar();
+      };
+    });
+
+    // Bind tool button click + Configurable Long-Press (default 5s) to open Right Dock Tool Inspector Tab
     container.querySelectorAll('.tool-btn').forEach(btn => {
+      const tid = btn.getAttribute('data-tool-id');
+      let lpTimer = null;
+
+      const clearLp = () => {
+        if (lpTimer) {
+          clearTimeout(lpTimer);
+          lpTimer = null;
+        }
+        btn.classList.remove('long-pressing');
+      };
+
+      btn.addEventListener('pointerdown', () => {
+        clearLp();
+        btn.classList.add('long-pressing');
+        const waitMs = Math.max(400, (Number(this.preferences.longPressSeconds) || 5) * 1000);
+        lpTimer = setTimeout(() => {
+          btn.classList.remove('long-pressing');
+          this.selectTool(tid);
+          this.openToolInspectorTab(tid);
+          this.showToast(`ツール詳細設定タブを右ドックパネルに開きました`);
+        }, waitMs);
+      });
+
+      btn.addEventListener('pointerup', clearLp);
+      btn.addEventListener('pointerleave', clearLp);
+      btn.addEventListener('pointercancel', clearLp);
+
       btn.onclick = () => {
-        const tid = btn.getAttribute('data-tool-id');
         this.selectTool(tid);
       };
     });
   }
+
+  /**
+   * Opens a Closable Tool-Settings Tab at the top of the Right Dock Panel
+   */
+  openToolInspectorTab(toolId) {
+    const panel = document.getElementById('panel-tool-inspector');
+    const titleEl = document.getElementById('tool-inspector-title');
+    const bodyEl = document.getElementById('tool-inspector-body');
+    const closeBtn = document.getElementById('btn-close-tool-inspector');
+    if (!panel || !bodyEl) return;
+
+    const toolDef = TOOL_DEFINITIONS.find(t => t.id === toolId) || TOOL_DEFINITIONS[0];
+    this.inspectedToolId = toolId;
+
+    // Ensure right dock is visible
+    document.getElementById('right-dock').classList.remove('collapsed');
+    panel.style.display = 'flex';
+    titleEl.innerHTML = `${renderIcon(toolDef.icon, 16)} <span>${toolDef.labelJa} 詳細設定</span>`;
+
+    closeBtn.onclick = (e) => {
+      e.stopPropagation();
+      this.inspectedToolId = null;
+      panel.style.display = 'none';
+    };
+
+    const shortcutKey = `tool:${toolId}`;
+    const currentShortcut = this.keybindings[shortcutKey] || toolDef.shortcut || '未割当';
+
+    bodyEl.innerHTML = `
+      <div style="font-size:0.78rem; color:var(--text-muted); display:flex; justify-content:space-between;">
+        <span>対象レイヤー: <strong>${toolDef.scope.toUpperCase()}</strong></span>
+        <span>ショートカット: <code>${currentShortcut}</code></span>
+      </div>
+      <div class="form-field">
+        <label>ブラシサイズ / 線幅: <strong id="ti-size-val">${this.toolOptions.brushSize}px</strong></label>
+        <input type="range" id="ti-brush-size" data-snap="brushSize" min="1" max="200" value="${this.toolOptions.brushSize}">
+      </div>
+      <div class="form-field">
+        <label>不透明度 (Opacity): <strong id="ti-op-val">${Math.round(this.paintState.opacity * 100)}%</strong></label>
+        <input type="range" id="ti-opacity" data-snap="percent" min="5" max="100" value="${Math.round(this.paintState.opacity * 100)}">
+      </div>
+      <div class="form-field">
+        <label>ブラシ硬さ (Hardness): <strong id="ti-hard-val">${Math.round(this.toolOptions.hardness * 100)}%</strong></label>
+        <input type="range" id="ti-hardness" data-snap="percent" min="5" max="100" value="${Math.round(this.toolOptions.hardness * 100)}">
+      </div>
+      <div class="form-field">
+        <label>手ブレ補正 (Stabilizer): <strong id="ti-stab-val">${this.preferences.stabilizer}</strong></label>
+        <input type="range" id="ti-stabilizer" data-snap="none" min="0" max="15" value="${this.preferences.stabilizer}">
+      </div>
+    `;
+
+    upgradeCustomSliders(bodyEl);
+
+    bodyEl.querySelector('#ti-brush-size').oninput = (e) => {
+      this.toolOptions.brushSize = Number(e.target.value) || 12;
+      this.paintState.strokeWidth = this.toolOptions.brushSize;
+      bodyEl.querySelector('#ti-size-val').textContent = `${this.toolOptions.brushSize}px`;
+      this.renderContextBar();
+    };
+    bodyEl.querySelector('#ti-opacity').oninput = (e) => {
+      this.paintState.opacity = (Number(e.target.value) || 100) / 100;
+      bodyEl.querySelector('#ti-op-val').textContent = `${e.target.value}%`;
+      this.renderContextBar();
+    };
+    bodyEl.querySelector('#ti-hardness').oninput = (e) => {
+      this.toolOptions.hardness = (Number(e.target.value) || 85) / 100;
+      bodyEl.querySelector('#ti-hard-val').textContent = `${e.target.value}%`;
+      this.renderContextBar();
+    };
+    bodyEl.querySelector('#ti-stabilizer').oninput = (e) => {
+      this.preferences.stabilizer = Number(e.target.value) || 0;
+      bodyEl.querySelector('#ti-stab-val').textContent = e.target.value;
+    };
+  }
+
+  // ============================================================================
+  // Top Context Bar Rendering (with Custom SVG Magnetic Snap Sliders)
+  // ============================================================================
 
   renderContextBar() {
     const bar = document.getElementById('context-bar');
@@ -413,15 +731,14 @@ export class SVGEditorApp {
       </div>
     `;
 
-    // Common Size / Stroke Width & Opacity controls (Unified UX between Vector & Raster!)
-    const isRasterBrush = ['raster-pen', 'raster-airbrush', 'raster-eraser', 'raster-blur', 'raster-stamp'].includes(this.activeToolId);
+    const isRasterStrokeTool = this.activeToolId.startsWith('raster-') && !['raster-bucket', 'raster-gradient'].includes(this.activeToolId);
     const isVectorBrush = ['vector-brush', 'vector-eraser'].includes(this.activeToolId);
 
-    if (isRasterBrush || isVectorBrush) {
+    if (isRasterStrokeTool || isVectorBrush) {
       html += `
         <div class="ctx-item">
-          <label>ブラシサイズ</label>
-          <input type="range" id="ctx-brush-size" min="1" max="200" value="${this.toolOptions.brushSize}">
+          <label>サイズ</label>
+          <input type="range" id="ctx-brush-size" data-snap="brushSize" min="1" max="200" value="${this.toolOptions.brushSize}" style="width:95px">
           <span id="ctx-brush-size-val">${this.toolOptions.brushSize}px</span>
         </div>
       `;
@@ -446,8 +763,8 @@ export class SVGEditorApp {
     html += `
       <div class="ctx-item">
         <label>不透明度</label>
-        <input type="range" id="ctx-opacity" min="5" max="100" value="${Math.round(this.paintState.opacity * 100)}">
-        <span>${Math.round(this.paintState.opacity * 100)}%</span>
+        <input type="range" id="ctx-opacity" data-snap="percent" min="5" max="100" value="${Math.round(this.paintState.opacity * 100)}" style="width:88px">
+        <span id="ctx-opacity-val">${Math.round(this.paintState.opacity * 100)}%</span>
       </div>
     `;
 
@@ -471,7 +788,7 @@ export class SVGEditorApp {
           <button type="button" id="ctx-bool-sub" title="パス型抜き">${renderIcon('bool-subtract', 16)}型抜き</button>
           <button type="button" id="ctx-bool-int" title="パス交差">${renderIcon('bool-intersect', 16)}交差</button>
           <button type="button" id="ctx-bool-exc" title="パス除外">${renderIcon('bool-exclude', 16)}除外</button>
-          <button type="button" id="ctx-to-path" title="選択図形をベジェパスに変換 (アウトライン化)">アウトライン化</button>
+          <button type="button" id="ctx-to-path" title="選択図形をベジェパスに変換">アウトライン化</button>
         </div>
       `;
     } else if (this.activeToolId === 'shape-rounded-rect' || this.activeToolId === 'shape-callout') {
@@ -492,7 +809,7 @@ export class SVGEditorApp {
         html += `
           <div class="ctx-item">
             <label>内径比</label>
-            <input type="range" id="ctx-star-ratio" min="15" max="90" value="${Math.round(this.toolOptions.starInnerRatio * 100)}">
+            <input type="range" id="ctx-star-ratio" data-snap="percent" min="15" max="90" value="${Math.round(this.toolOptions.starInnerRatio * 100)}" style="width:85px">
           </div>
         `;
       }
@@ -500,7 +817,7 @@ export class SVGEditorApp {
       html += `
         <div class="ctx-item">
           <label>ノード簡略化</label>
-          <input type="range" id="ctx-freehand-tol" min="1" max="12" step="0.5" value="${this.toolOptions.smoothingTolerance}">
+          <input type="range" id="ctx-freehand-tol" data-snap="none" min="1" max="12" step="0.5" value="${this.toolOptions.smoothingTolerance}" style="width:85px">
         </div>
       `;
     } else if (this.activeToolId === 'text') {
@@ -515,46 +832,72 @@ export class SVGEditorApp {
           </label>
         </div>
       `;
-    } else if (this.activeToolId === 'raster-pen' || this.activeToolId === 'raster-airbrush') {
-      const presetOpts = Object.values(RASTER_BRUSH_PRESETS).map(p =>
-        `<option value="${p.id}" ${this.toolOptions.rasterPreset === p.id ? 'selected' : ''}>${p.nameJa}</option>`
-      ).join('');
-      html += `
-        <div class="ctx-item">
-          <label>ブラシ種類</label>
-          <select id="ctx-raster-preset">${presetOpts}</select>
-        </div>
-        <div class="ctx-item">
-          <label>硬さ</label>
-          <input type="range" id="ctx-raster-hard" min="5" max="100" value="${Math.round(this.toolOptions.hardness * 100)}">
-        </div>
-      `;
     } else if (this.activeToolId === 'raster-bucket') {
       html += `
         <div class="ctx-item">
           <label>許容値</label>
-          <input type="range" id="ctx-bucket-tol" min="0" max="120" value="${this.toolOptions.bucketTolerance}">
-          <span>${this.toolOptions.bucketTolerance}</span>
+          <input type="range" id="ctx-bucket-tol" data-snap="percent" min="0" max="120" value="${this.toolOptions.bucketTolerance}" style="width:85px">
+          <span id="ctx-bucket-tol-val">${this.toolOptions.bucketTolerance}</span>
         </div>
         <div class="ctx-item">
           <label style="display:flex; align-items:center; gap:4px; color:var(--text-main);">
-            <input type="checkbox" id="ctx-bucket-contig" ${this.toolOptions.bucketContiguous ? 'checked' : ''}> 隣接ピクセルのみ
+            <input type="checkbox" id="ctx-bucket-contig" ${this.toolOptions.bucketContiguous ? 'checked' : ''}> 隣接のみ
           </label>
         </div>
       `;
-    } else if (this.activeToolId === 'raster-blur') {
+    } else if (this.activeToolId === 'raster-dodge') {
       html += `
         <div class="ctx-item">
-          <label>モード</label>
-          <select id="ctx-blur-mode">
-            <option value="blur" ${this.toolOptions.blurMode === 'blur' ? 'selected' : ''}>ぼかし (Blur)</option>
-            <option value="smudge" ${this.toolOptions.blurMode === 'smudge' ? 'selected' : ''}>指先 (Smudge)</option>
+          <label>効果</label>
+          <select id="ctx-dodge-mode">
+            <option value="lighter" ${this.toolOptions.dodgeMode === 'lighter' ? 'selected' : ''}>覆い焼き (ハイライト発光)</option>
+            <option value="multiply" ${this.toolOptions.dodgeMode === 'multiply' ? 'selected' : ''}>焼き込み (シャドウ陰影)</option>
           </select>
+        </div>
+      `;
+    } else if (this.activeToolId === 'raster-stamp') {
+      html += `
+        <div class="ctx-item">
+          <label>スタンプ形状</label>
+          <select id="ctx-stamp-shape">
+            <option value="star" ${this.toolOptions.stampShape === 'star' ? 'selected' : ''}>★ スター</option>
+            <option value="heart" ${this.toolOptions.stampShape === 'heart' ? 'selected' : ''}>♥ ハート</option>
+            <option value="sparkle" ${this.toolOptions.stampShape === 'sparkle' ? 'selected' : ''}>✦ キラメキ</option>
+          </select>
+        </div>
+      `;
+    } else if (this.activeToolId === 'raster-symmetry') {
+      html += `
+        <div class="ctx-item">
+          <label>対称モード</label>
+          <select id="ctx-sym-mode">
+            <option value="horizontal" ${this.toolOptions.symmetryMode === 'horizontal' ? 'selected' : ''}>左右ミラー対称</option>
+            <option value="quad" ${this.toolOptions.symmetryMode === 'quad' ? 'selected' : ''}>上下左右4方向対称</option>
+          </select>
+        </div>
+      `;
+    } else if (this.activeToolId === 'raster-line') {
+      html += `
+        <div class="ctx-item">
+          <label>図形種類</label>
+          <select id="ctx-ras-shape">
+            <option value="line" ${this.toolOptions.rasterShapeKind === 'line' ? 'selected' : ''}>直線</option>
+            <option value="rect" ${this.toolOptions.rasterShapeKind === 'rect' ? 'selected' : ''}>矩形枠</option>
+            <option value="fill-rect" ${this.toolOptions.rasterShapeKind === 'fill-rect' ? 'selected' : ''}>塗りつぶし矩形</option>
+          </select>
+        </div>
+      `;
+    } else if (isRasterStrokeTool) {
+      html += `
+        <div class="ctx-item">
+          <label>硬さ</label>
+          <input type="range" id="ctx-raster-hard" data-snap="percent" min="5" max="100" value="${Math.round(this.toolOptions.hardness * 100)}" style="width:85px">
         </div>
       `;
     }
 
     bar.innerHTML = html;
+    upgradeCustomSliders(bar);
     this._bindContextBarInputs(bar);
   }
 
@@ -579,8 +922,9 @@ export class SVGEditorApp {
     });
     bind('#ctx-opacity', 'input', (e) => {
       this.paintState.opacity = (Number(e.target.value) || 100) / 100;
+      const lbl = bar.querySelector('#ctx-opacity-val');
+      if (lbl) lbl.textContent = `${e.target.value}%`;
       this.applyPaintToSelection();
-      this.renderContextBar();
     });
     bind('#ctx-corner-r', 'input', (e) => {
       this.toolOptions.cornerRadius = Math.max(0, Number(e.target.value) || 0);
@@ -600,31 +944,30 @@ export class SVGEditorApp {
     bind('#ctx-text-vertical', 'change', (e) => {
       this.toolOptions.verticalText = e.target.checked;
     });
-    bind('#ctx-raster-preset', 'change', (e) => {
-      const p = RASTER_BRUSH_PRESETS[e.target.value];
-      this.toolOptions.rasterPreset = e.target.value;
-      if (p) {
-        this.toolOptions.brushSize = p.size;
-        this.toolOptions.hardness = p.hardness;
-        this.paintState.opacity = p.opacity;
-        this.renderContextBar();
-      }
-    });
     bind('#ctx-raster-hard', 'input', (e) => {
       this.toolOptions.hardness = (Number(e.target.value) || 85) / 100;
     });
     bind('#ctx-bucket-tol', 'input', (e) => {
       this.toolOptions.bucketTolerance = Number(e.target.value) || 24;
-      this.renderContextBar();
+      const lbl = bar.querySelector('#ctx-bucket-tol-val');
+      if (lbl) lbl.textContent = String(this.toolOptions.bucketTolerance);
     });
     bind('#ctx-bucket-contig', 'change', (e) => {
       this.toolOptions.bucketContiguous = e.target.checked;
     });
-    bind('#ctx-blur-mode', 'change', (e) => {
-      this.toolOptions.blurMode = e.target.value;
+    bind('#ctx-dodge-mode', 'change', (e) => {
+      this.toolOptions.dodgeMode = e.target.value;
+    });
+    bind('#ctx-stamp-shape', 'change', (e) => {
+      this.toolOptions.stampShape = e.target.value;
+    });
+    bind('#ctx-sym-mode', 'change', (e) => {
+      this.toolOptions.symmetryMode = e.target.value;
+    });
+    bind('#ctx-ras-shape', 'change', (e) => {
+      this.toolOptions.rasterShapeKind = e.target.value;
     });
 
-    // Alignment & Boolean Buttons
     bind('#ctx-align-left', 'click', () => this.alignSelectedObjects('left'));
     bind('#ctx-align-ch', 'click', () => this.alignSelectedObjects('center-h'));
     bind('#ctx-align-right', 'click', () => this.alignSelectedObjects('right'));
@@ -641,7 +984,7 @@ export class SVGEditorApp {
   }
 
   // ============================================================================
-  // Viewport Coordinate Transforms & High-DPI 60fps Hybrid Rendering
+  // Viewport Coordinate Transforms, Interactive Navigator Minimap & Rendering
   // ============================================================================
 
   resizeViewportCanvases() {
@@ -668,9 +1011,6 @@ export class SVGEditorApp {
     this.requestRender();
   }
 
-  /**
-   * Converts screen (stage-relative CSS pixels) to Document World coordinates
-   */
   screenToWorld(sx, sy) {
     const cx = this.doc.canvas.width / 2;
     const cy = this.doc.canvas.height / 2;
@@ -692,9 +1032,6 @@ export class SVGEditorApp {
     return { x: dx + cx, y: dy + cy };
   }
 
-  /**
-   * Converts Document World coordinates to screen (stage-relative CSS pixels)
-   */
   worldToScreen(wx, wy) {
     const cx = this.doc.canvas.width / 2;
     const cy = this.doc.canvas.height / 2;
@@ -730,23 +1067,95 @@ export class SVGEditorApp {
     this.viewport.panX = (rect.width - this.doc.canvas.width * this.viewport.zoom) / 2;
     this.viewport.panY = (rect.height - this.doc.canvas.height * this.viewport.zoom) / 2;
     this.viewport.rotation = 0;
+    this._syncNavigatorSliders();
     this.requestRender();
     this.updateStatusBar();
   }
 
   setZoom(newZoom, anchorScreenX = null, anchorScreenY = null) {
-    const clamped = Math.max(0.01, Math.min(64, newZoom)); // 1% ~ 6400%
+    const clamped = Math.max(0.01, Math.min(64, newZoom));
     if (anchorScreenX != null && anchorScreenY != null) {
       const beforeWorld = this.screenToWorld(anchorScreenX, anchorScreenY);
       this.viewport.zoom = clamped;
       const afterScreen = this.worldToScreen(beforeWorld.x, beforeWorld.y);
       this.viewport.panX += (anchorScreenX - afterScreen.x);
       this.viewport.panY += (anchorScreenY - afterScreen.y);
+    } else if (this.stageEl) {
+      const rect = this.stageEl.getBoundingClientRect();
+      const cx = rect.width / 2;
+      const cy = rect.height / 2;
+      const beforeWorld = this.screenToWorld(cx, cy);
+      this.viewport.zoom = clamped;
+      const afterScreen = this.worldToScreen(beforeWorld.x, beforeWorld.y);
+      this.viewport.panX += (cx - afterScreen.x);
+      this.viewport.panY += (cy - afterScreen.y);
     } else {
       this.viewport.zoom = clamped;
     }
+    this._syncNavigatorSliders();
     this.requestRender();
     this.updateStatusBar();
+  }
+
+  _syncNavigatorSliders() {
+    const zPct = Math.round(this.viewport.zoom * 100);
+    setSliderValue('nav-zoom-slider', Math.max(10, Math.min(800, zPct)));
+    const zVal = document.getElementById('nav-zoom-val');
+    if (zVal) zVal.textContent = `${zPct}%`;
+
+    setSliderValue('nav-rot-slider', this.viewport.rotation);
+    const rVal = document.getElementById('nav-rot-val');
+    if (rVal) rVal.textContent = `${this.viewport.rotation}°`;
+  }
+
+  /**
+   * Interactive Navigator Minimap: Clicking or dragging inside the Navigator moves the red viewport frame directly!
+   */
+  bindNavigatorEvents() {
+    if (!this.navCanvas) return;
+    let draggingNav = false;
+
+    const panViewportToNavPoint = (e) => {
+      if (!this.stageEl) return;
+      const rect = this.navCanvas.getBoundingClientRect();
+      const nx = (e.clientX - rect.left) * (this.navCanvas.width / (rect.width || 1));
+      const ny = (e.clientY - rect.top) * (this.navCanvas.height / (rect.height || 1));
+
+      const nw = this.navCanvas.width;
+      const nh = this.navCanvas.height;
+      const scale = Math.min((nw - 8) / this.doc.canvas.width, (nh - 8) / this.doc.canvas.height);
+      const ox = (nw - this.doc.canvas.width * scale) / 2;
+      const oy = (nh - this.doc.canvas.height * scale) / 2;
+
+      const targetWorldX = (nx - ox) / scale;
+      const targetWorldY = (ny - oy) / scale;
+
+      const stageRect = this.stageEl.getBoundingClientRect();
+      const currentTargetScreen = this.worldToScreen(targetWorldX, targetWorldY);
+      this.viewport.panX += (stageRect.width / 2 - currentTargetScreen.x);
+      this.viewport.panY += (stageRect.height / 2 - currentTargetScreen.y);
+      this.requestRender();
+    };
+
+    this.navCanvas.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      this.navCanvas.setPointerCapture(e.pointerId);
+      draggingNav = true;
+      this.navCanvas.style.cursor = 'grabbing';
+      panViewportToNavPoint(e);
+    });
+
+    this.navCanvas.addEventListener('pointermove', (e) => {
+      if (!draggingNav) return;
+      panViewportToNavPoint(e);
+    });
+
+    const endNav = () => {
+      draggingNav = false;
+      this.navCanvas.style.cursor = 'grab';
+    };
+    this.navCanvas.addEventListener('pointerup', endNav);
+    this.navCanvas.addEventListener('pointercancel', endNav);
   }
 
   requestRender() {
@@ -768,7 +1177,6 @@ export class SVGEditorApp {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, this.mainCanvas.width / dpr, this.mainCanvas.height / dpr);
 
-    // Apply Viewport Pan / Zoom / Rotate / Flip transform
     const cx = this.doc.canvas.width / 2;
     const cy = this.doc.canvas.height / 2;
     ctx.translate(this.viewport.panX, this.viewport.panY);
@@ -778,7 +1186,6 @@ export class SVGEditorApp {
     if (this.viewport.rotation !== 0) ctx.rotate(this.viewport.rotation * DEG_TO_RAD);
     ctx.translate(-cx, -cy);
 
-    // 1. Draw Document Paper Drop Shadow & Background (Checkerboard or Solid)
     const cw = this.doc.canvas.width;
     const ch = this.doc.canvas.height;
     ctx.save();
@@ -788,7 +1195,6 @@ export class SVGEditorApp {
     ctx.fillRect(0, 0, cw, ch);
     ctx.restore();
 
-    // Clip to Canvas Artboard Bounds
     ctx.save();
     ctx.beginPath();
     ctx.rect(0, 0, cw, ch);
@@ -803,26 +1209,20 @@ export class SVGEditorApp {
       ctx.fillRect(0, 0, cw, ch);
     }
 
-    // 2. Render Hybrid Layer Tree (Vector paths are rendered directly at screen zoom -> zero blur at 6400%!)
     renderLayerTreeToContext(ctx, this.doc.rootGroup, this.doc, this.rasterStore, this.imageCache);
 
-    // 3. Draw Grid if enabled
     if (this.doc.grid.enabled) {
       this._drawCanvasGrid(ctx, cw, ch);
     }
 
-    ctx.restore(); // End artboard clip
+    ctx.restore();
 
-    // Artboard border outline
     ctx.strokeStyle = 'rgba(148, 163, 184, 0.45)';
     ctx.lineWidth = 1 / this.viewport.zoom;
     ctx.strokeRect(0, 0, cw, ch);
     ctx.restore();
 
-    // 4. Render Overlay Canvas (Selection Handles, Node Handles, Guides, Smart Guides, Brush Cursor, Lasso)
     this._renderOverlay(octx, dpr);
-
-    // 5. Render Rulers & Navigator Minimap
     this._renderRulers(dpr);
     this._renderNavigator();
   }
@@ -864,7 +1264,7 @@ export class SVGEditorApp {
     const sh = this.overlayCanvas.height / dpr;
     octx.clearRect(0, 0, sw, sh);
 
-    // 1. User Guides dragged from Rulers
+    // 1. Guides
     for (const g of this.doc.guides || []) {
       octx.save();
       octx.strokeStyle = g.color || '#06b6d4';
@@ -884,7 +1284,28 @@ export class SVGEditorApp {
       octx.restore();
     }
 
-    // 2. Smart Alignment Guides during drag
+    // 2. Symmetry Ruler Line when raster-symmetry is active
+    if (this.activeToolId === 'raster-symmetry') {
+      octx.save();
+      octx.strokeStyle = 'rgba(168, 85, 247, 0.75)';
+      octx.lineWidth = 1.5;
+      octx.setLineDash([6, 4]);
+      const midTop = this.worldToScreen(this.doc.canvas.width / 2, 0);
+      const midBot = this.worldToScreen(this.doc.canvas.width / 2, this.doc.canvas.height);
+      octx.beginPath();
+      octx.moveTo(midTop.x, midTop.y);
+      octx.lineTo(midBot.x, midBot.y);
+      if (this.toolOptions.symmetryMode === 'quad') {
+        const midL = this.worldToScreen(0, this.doc.canvas.height / 2);
+        const midR = this.worldToScreen(this.doc.canvas.width, this.doc.canvas.height / 2);
+        octx.moveTo(midL.x, midL.y);
+        octx.lineTo(midR.x, midR.y);
+      }
+      octx.stroke();
+      octx.restore();
+    }
+
+    // 3. Smart Alignment Guides
     for (const sg of this.smartGuides) {
       octx.save();
       octx.strokeStyle = '#ec4899';
@@ -903,7 +1324,25 @@ export class SVGEditorApp {
       octx.restore();
     }
 
-    // 3. Selection Bounding Box & 8 Resize + Rotation Handles
+    // 4. Rectangular Marquee Selection Box (`marquee-select`)
+    if (this.interaction && this.interaction.type === 'marquee-select') {
+      const p1 = this.worldToScreen(this.interaction.startWorld.x, this.interaction.startWorld.y);
+      const p2 = this.worldToScreen(this.interaction.currentWorld.x, this.interaction.currentWorld.y);
+      const rx = Math.min(p1.x, p2.x);
+      const ry = Math.min(p1.y, p2.y);
+      const rw = Math.abs(p2.x - p1.x);
+      const rh = Math.abs(p2.y - p1.y);
+      octx.save();
+      octx.fillStyle = 'rgba(59, 130, 246, 0.14)';
+      octx.strokeStyle = '#3b82f6';
+      octx.lineWidth = 1.5;
+      octx.setLineDash([5, 3]);
+      octx.fillRect(rx, ry, rw, rh);
+      octx.strokeRect(rx, ry, rw, rh);
+      octx.restore();
+    }
+
+    // 5. Selection Bounding Box & 8 Resize + Rotation Handles
     const selectedObjs = this.getSelectedObjects();
     for (const obj of selectedObjs) {
       const b = getObjectBounds(obj);
@@ -919,7 +1358,6 @@ export class SVGEditorApp {
       octx.lineWidth = 1.5;
       octx.strokeRect(rx, ry, rw, rh);
 
-      // Draw 8 resize handles + top rotation stalk
       const handles = this.getSelectionHandlesScreen(b);
       for (const h of handles) {
         if (h.id === 'rot') {
@@ -940,7 +1378,6 @@ export class SVGEditorApp {
         }
       }
 
-      // If in Node Edit Tool ('node'), draw Bezier anchor points & control handles
       if (this.activeToolId === 'node' && obj.nodes && obj.nodes.length > 0) {
         for (const n of obj.nodes) {
           const pt = this.worldToScreen(n.x, n.y);
@@ -968,7 +1405,7 @@ export class SVGEditorApp {
       octx.restore();
     }
 
-    // 4. Lasso selection polygon preview
+    // 6. Lasso polygon preview
     if (this.interaction && this.interaction.type === 'lasso' && this.interaction.points.length > 1) {
       octx.save();
       octx.strokeStyle = '#3b82f6';
@@ -987,7 +1424,7 @@ export class SVGEditorApp {
       octx.restore();
     }
 
-    // 5. Measure Tool overlay
+    // 7. Measure Tool overlay
     if (this.measureLine) {
       const p1 = this.worldToScreen(this.measureLine.x1, this.measureLine.y1);
       const p2 = this.worldToScreen(this.measureLine.x2, this.measureLine.y2);
@@ -1008,8 +1445,8 @@ export class SVGEditorApp {
       octx.restore();
     }
 
-    // 6. Brush Hover Circle Cursor for Vector Brush & Raster Brushes
-    if (['vector-brush', 'vector-eraser', 'raster-pen', 'raster-airbrush', 'raster-eraser', 'raster-blur', 'raster-stamp'].includes(this.activeToolId)) {
+    // 8. Brush Hover Circle Cursor
+    if (this.activeToolId.startsWith('raster-') || ['vector-brush', 'vector-eraser'].includes(this.activeToolId)) {
       const sc = this.worldToScreen(this.hoverWorldPos.x, this.hoverWorldPos.y);
       const r = Math.max(2, (this.toolOptions.brushSize * this.viewport.zoom) / 2);
       octx.save();
@@ -1055,7 +1492,6 @@ export class SVGEditorApp {
     const corner = document.getElementById('ruler-corner');
     if (corner) corner.textContent = unit;
 
-    // Top Ruler
     const tctx = this.rulerTop.getContext('2d');
     const tw = this.rulerTop.width / dpr;
     const th = this.rulerTop.height / dpr;
@@ -1084,7 +1520,6 @@ export class SVGEditorApp {
     tctx.stroke();
     tctx.restore();
 
-    // Left Ruler
     const lctx = this.rulerLeft.getContext('2d');
     const lw = this.rulerLeft.width / dpr;
     const lh = this.rulerLeft.height / dpr;
@@ -1135,14 +1570,19 @@ export class SVGEditorApp {
     nctx.fillRect(0, 0, this.doc.canvas.width, this.doc.canvas.height);
     renderLayerTreeToContext(nctx, this.doc.rootGroup, this.doc, this.rasterStore, this.imageCache);
 
-    // Draw visible viewport camera frame in red/blue
     if (this.stageEl) {
       const rect = this.stageEl.getBoundingClientRect();
       const tl = this.screenToWorld(0, 0);
       const br = this.screenToWorld(rect.width, rect.height);
+      const rx = Math.min(tl.x, br.x);
+      const ry = Math.min(tl.y, br.y);
+      const rw = Math.abs(br.x - tl.x);
+      const rh = Math.abs(br.y - tl.y);
       nctx.strokeStyle = '#ef4444';
-      nctx.lineWidth = 2 / scale;
-      nctx.strokeRect(tl.x, tl.y, br.x - tl.x, br.y - tl.y);
+      nctx.fillStyle = 'rgba(239, 68, 68, 0.12)';
+      nctx.lineWidth = 2.2 / scale;
+      nctx.fillRect(rx, ry, rw, rh);
+      nctx.strokeRect(rx, ry, rw, rh);
     }
     nctx.restore();
 
@@ -1151,14 +1591,13 @@ export class SVGEditorApp {
   }
 
   // ============================================================================
-  // Pointer Events, Pen Pressure/CoalescedEvents, Touch Gestures & Rulers
+  // Pointer Events, Pen Pressure & Tilt, Touch Gestures & Rulers
   // ============================================================================
 
   bindViewportEvents() {
     const stage = this.stageEl;
     if (!stage) return;
 
-    // Ruler unit toggle & drag-to-create guide
     document.getElementById('ruler-corner').onclick = () => {
       const units = ['px', 'mm', 'cm', 'inch'];
       const idx = units.indexOf(this.doc.canvas.unit);
@@ -1183,7 +1622,6 @@ export class SVGEditorApp {
       this.requestRender();
     });
 
-    // Wheel Zoom / Pan
     stage.addEventListener('wheel', (e) => {
       e.preventDefault();
       const rect = stage.getBoundingClientRect();
@@ -1199,13 +1637,11 @@ export class SVGEditorApp {
       }
     }, { passive: false });
 
-    // Right-click Context Menu
     stage.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       this.openContextMenu(e.clientX, e.clientY);
     });
 
-    // Double-click on Text Object opens inline IME text editor
     stage.addEventListener('dblclick', (e) => {
       const rect = stage.getBoundingClientRect();
       const world = this.screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
@@ -1215,7 +1651,6 @@ export class SVGEditorApp {
       }
     });
 
-    // Pointer Down (Unified Mouse / Pen / Touch)
     stage.addEventListener('pointerdown', (e) => {
       this.closeContextMenu();
       stage.setPointerCapture(e.pointerId);
@@ -1223,7 +1658,6 @@ export class SVGEditorApp {
       const sx = e.clientX - rect.left;
       const sy = e.clientY - rect.top;
 
-      // Track multi-touch pointers for 2-finger Pan/Zoom/Rotate and 2/3-finger Tap Undo/Redo
       if (e.pointerType === 'touch') {
         this.activePointers.set(e.pointerId, { x: sx, y: sy, downTime: Date.now(), moved: false });
         if (this.activePointers.size === 2) {
@@ -1249,7 +1683,6 @@ export class SVGEditorApp {
         }
       }
 
-      // Middle mouse button or Spacebar or Hand tool -> Pan
       if (e.button === 1 || this.spacePanActive || this.activeToolId === 'pan') {
         this.interaction = {
           type: 'pan',
@@ -1268,13 +1701,12 @@ export class SVGEditorApp {
       }
 
       const world = this.screenToWorld(sx, sy);
-      const pressure = this._normalizePressure(e);
-      this.hoverWorldPos = { x: world.x, y: world.y, pressure };
+      const { pressure, tiltX, tiltY } = this._extractPenMetrics(e);
+      this.hoverWorldPos = { x: world.x, y: world.y, pressure, tiltX, tiltY };
 
-      this.handleToolPointerDown(world, sx, sy, pressure, e);
+      this.handleToolPointerDown(world, sx, sy, pressure, { tiltX, tiltY }, e);
     });
 
-    // Pointer Move (Uses getCoalescedEvents() for ultra-smooth 120Hz+ pen tablet strokes)
     stage.addEventListener('pointermove', (e) => {
       const rect = stage.getBoundingClientRect();
       const sx = e.clientX - rect.left;
@@ -1301,6 +1733,7 @@ export class SVGEditorApp {
           this.viewport.panX = this.touchGesture.startPanX + (midX - this.touchGesture.startMidX);
           this.viewport.panY = this.touchGesture.startPanY + (midY - this.touchGesture.startMidY);
           this.viewport.rotation = Math.round(this.touchGesture.startRot + (angle - this.touchGesture.startAngle) * RAD_TO_DEG);
+          this._syncNavigatorSliders();
           this.requestRender();
           this.updateStatusBar();
           return;
@@ -1308,12 +1741,12 @@ export class SVGEditorApp {
       }
 
       const world = this.screenToWorld(sx, sy);
-      const pressure = this._normalizePressure(e);
-      this.hoverWorldPos = { x: world.x, y: world.y, pressure };
+      const { pressure, tiltX, tiltY } = this._extractPenMetrics(e);
+      this.hoverWorldPos = { x: world.x, y: world.y, pressure, tiltX, tiltY };
 
       if (!this.interaction) {
         this.updateStatusBar();
-        if (['vector-brush', 'raster-pen', 'raster-airbrush', 'raster-eraser'].includes(this.activeToolId)) {
+        if (this.activeToolId.startsWith('raster-') || ['vector-brush', 'vector-eraser'].includes(this.activeToolId)) {
           this.requestRender();
         }
         return;
@@ -1326,7 +1759,6 @@ export class SVGEditorApp {
         return;
       }
 
-      // Extract high-frequency coalesced events for pen/brush drawing
       const events = (typeof e.getCoalescedEvents === 'function' && e.getCoalescedEvents().length > 0)
         ? e.getCoalescedEvents()
         : [e];
@@ -1335,15 +1767,14 @@ export class SVGEditorApp {
         const csx = cev.clientX - rect.left;
         const csy = cev.clientY - rect.top;
         const cWorld = this.screenToWorld(csx, csy);
-        const cPressure = this._normalizePressure(cev);
-        this.handleToolPointerMove(cWorld, csx, csy, cPressure, cev);
+        const metrics = this._extractPenMetrics(cev);
+        this.handleToolPointerMove(cWorld, csx, csy, metrics.pressure, metrics, cev);
       }
 
       this.updateStatusBar();
       this.requestRender();
     });
 
-    // Pointer Up / Cancel
     const onPointerEnd = (e) => {
       if (e.pointerType === 'touch') {
         this.activePointers.delete(e.pointerId);
@@ -1375,9 +1806,24 @@ export class SVGEditorApp {
     document.getElementById('hud-zoom-out').onclick = () => this.setZoom(this.viewport.zoom * 0.8);
     document.getElementById('hud-zoom-100').onclick = () => this.setZoom(1.0);
     document.getElementById('hud-zoom-fit').onclick = () => this.zoomToFit();
-    document.getElementById('hud-rotate-left').onclick = () => { this.viewport.rotation -= 15; this.requestRender(); this.updateStatusBar(); };
-    document.getElementById('hud-rotate-right').onclick = () => { this.viewport.rotation += 15; this.requestRender(); this.updateStatusBar(); };
-    document.getElementById('hud-rotate-reset').onclick = () => { this.viewport.rotation = 0; this.requestRender(); this.updateStatusBar(); };
+    document.getElementById('hud-rotate-left').onclick = () => {
+      this.viewport.rotation = Math.max(-180, this.viewport.rotation - 15);
+      this._syncNavigatorSliders();
+      this.requestRender();
+      this.updateStatusBar();
+    };
+    document.getElementById('hud-rotate-right').onclick = () => {
+      this.viewport.rotation = Math.min(180, this.viewport.rotation + 15);
+      this._syncNavigatorSliders();
+      this.requestRender();
+      this.updateStatusBar();
+    };
+    document.getElementById('hud-rotate-reset').onclick = () => {
+      this.viewport.rotation = 0;
+      this._syncNavigatorSliders();
+      this.requestRender();
+      this.updateStatusBar();
+    };
     document.getElementById('hud-flip-view').onclick = (e) => {
       this.viewport.flipX = !this.viewport.flipX;
       e.currentTarget.classList.toggle('active', this.viewport.flipX);
@@ -1389,29 +1835,40 @@ export class SVGEditorApp {
       this.requestRender();
     };
 
-    // Navigator sliders
+    // Navigator Magnetic Snap Sliders
     document.getElementById('nav-zoom-slider').oninput = (e) => {
-      this.setZoom((Number(e.target.value) || 100) / 100);
+      const zPct = Number(e.target.value) || 100;
+      document.getElementById('nav-zoom-val').textContent = `${zPct}%`;
+      this.setZoom(zPct / 100);
     };
     document.getElementById('nav-rot-slider').oninput = (e) => {
       this.viewport.rotation = Number(e.target.value) || 0;
+      document.getElementById('nav-rot-val').textContent = `${this.viewport.rotation}°`;
       this.requestRender();
       this.updateStatusBar();
     };
   }
 
-  _normalizePressure(e) {
-    // Mouse clicks report 0.5 by default in PointerEvents; adjust with user's pressure gamma curve
-    let raw = (e.pointerType === 'pen' && e.pressure > 0) ? e.pressure : 0.72;
+  _extractPenMetrics(e) {
+    let rawP = (e.pointerType === 'pen' && e.pressure > 0) ? e.pressure : 0.72;
+    if (this.preferences.enablePressure === false) {
+      rawP = 0.75;
+    } else {
+      const deadzone = this.preferences.minPressure || 0.05;
+      rawP = Math.max(0.05, (rawP - deadzone) / (1 - deadzone));
+    }
     const gamma = this.preferences.pressureGamma || 1.0;
-    return Math.max(0.05, Math.min(1.0, Math.pow(raw, gamma)));
+    const pressure = Math.max(0.05, Math.min(1.0, Math.pow(rawP, gamma)));
+    const tiltX = this.preferences.enableTilt !== false ? (e.tiltX || 0) : 0;
+    const tiltY = this.preferences.enableTilt !== false ? (e.tiltY || 0) : 0;
+    return { pressure, tiltX, tiltY };
   }
 
   // ============================================================================
-  // Tool State Machine (Select, Node, Shapes, Pen, Freehand, Vector Brush, Text, Raster Tools)
+  // Tool State Machine (Including Marquee Rectangular Selection & 16 Raster Tools)
   // ============================================================================
 
-  handleToolPointerDown(world, sx, sy, pressure, e) {
+  handleToolPointerDown(world, sx, sy, pressure, tilt, e) {
     const toolDef = TOOL_DEFINITIONS.find(t => t.id === this.activeToolId);
     if (!toolDef) return;
     const compat = this.getToolCompatibility(toolDef);
@@ -1422,28 +1879,24 @@ export class SVGEditorApp {
 
     const activeLayer = this.getActiveLayer();
 
-    // 1. Eyedropper Tool
     if (this.activeToolId === 'eyedropper') {
       this.pickColorFromCanvas(sx, sy);
       return;
     }
 
-    // 2. Ruler Measure Tool
     if (this.activeToolId === 'measure') {
       this.measureLine = { x1: world.x, y1: world.y, x2: world.x, y2: world.y };
       this.interaction = { type: 'measure' };
       return;
     }
 
-    // 3. Lasso Selection Tool
     if (this.activeToolId === 'lasso') {
       this.interaction = { type: 'lasso', points: [{ x: world.x, y: world.y }] };
       return;
     }
 
-    // 4. Select & Transform Tool
+    // 4. Select & Transform Tool (Supports Marquee Rectangular Drag Selection on empty canvas!)
     if (this.activeToolId === 'select') {
-      // Check if user clicked on a transform handle of current selection
       const selectedObjs = this.getSelectedObjects();
       if (selectedObjs.length === 1) {
         const obj = selectedObjs[0];
@@ -1463,7 +1916,6 @@ export class SVGEditorApp {
         }
       }
 
-      // Check object hit test
       const hitObj = this.hitTestObjects(world.x, world.y);
       if (hitObj) {
         if (e.shiftKey) {
@@ -1482,19 +1934,27 @@ export class SVGEditorApp {
           moved: false
         };
       } else {
-        this.selectedObjectIds.clear();
+        // Begin Marquee Rectangular Drag Selection within the active layer!
+        if (!e.shiftKey) {
+          this.selectedObjectIds.clear();
+        }
+        this.interaction = {
+          type: 'marquee-select',
+          startWorld: world,
+          currentWorld: world,
+          additive: e.shiftKey
+        };
       }
       this.refreshAllPanels();
       this.requestRender();
       return;
     }
 
-    // 5. Node Edit Tool ('node')
+    // 5. Node Edit Tool
     if (this.activeToolId === 'node') {
       const selected = this.getSelectedObjects()[0];
       if (!selected) return;
       if (!selected.nodes || selected.nodes.length === 0) {
-        // Automatically promote shape primitive to editable Bezier path
         const pathObj = convertObjectToPath(selected);
         const found = findObjectById(this.doc.rootGroup, selected.id);
         if (found) {
@@ -1504,7 +1964,6 @@ export class SVGEditorApp {
         }
         return;
       }
-      // Hit test anchor nodes
       for (let i = 0; i < selected.nodes.length; i++) {
         const n = selected.nodes[i];
         const sc = this.worldToScreen(n.x, n.y);
@@ -1521,7 +1980,7 @@ export class SVGEditorApp {
       return;
     }
 
-    // 6. Vector Shape Tools (Rect, Rounded Rect, Ellipse, Polygon, Star, Line, Arrow, Arc, Spiral, Callout)
+    // 6. Vector Shape Tools
     if (toolDef.shapeKind && activeLayer && activeLayer.type === 'vector') {
       const newObj = createVectorObject(toolDef.shapeKind, {
         x: world.x,
@@ -1553,7 +2012,7 @@ export class SVGEditorApp {
       return;
     }
 
-    // 7. Bezier Pen Tool ('pen')
+    // 7. Bezier Pen Tool
     if (this.activeToolId === 'pen' && activeLayer && activeLayer.type === 'vector') {
       if (!this.activePenObject) {
         const penObj = createVectorObject('path', {
@@ -1574,7 +2033,6 @@ export class SVGEditorApp {
         const firstNode = this.activePenObject.nodes[0];
         const firstSc = this.worldToScreen(firstNode.x, firstNode.y);
         if (this.activePenObject.nodes.length >= 3 && Math.hypot(firstSc.x - sx, firstSc.y - sy) <= 12) {
-          // Close path and commit
           this.activePenObject.closed = true;
           this.commitActivePenPath(activeLayer);
           return;
@@ -1598,7 +2056,7 @@ export class SVGEditorApp {
       return;
     }
 
-    // 8. Freehand Path Tool ('freehand')
+    // 8. Freehand Path Tool
     if (this.activeToolId === 'freehand' && activeLayer && activeLayer.type === 'vector') {
       const fhObj = createVectorObject('path', {
         name: 'フリーハンド線',
@@ -1619,11 +2077,11 @@ export class SVGEditorApp {
       return;
     }
 
-    // 9. Pressure Vector Brush ('vector-brush')
+    // 9. Pressure Vector Brush
     if (this.activeToolId === 'vector-brush' && activeLayer && activeLayer.type === 'vector') {
       const vbObj = createVectorObject('brush-stroke', {
         name: 'ベクターブラシ線',
-        points: [{ x: world.x, y: world.y, pressure }],
+        points: [{ x: world.x, y: world.y, pressure, tiltX: tilt.tiltX, tiltY: tilt.tiltY }],
         brushSize: this.toolOptions.brushSize,
         style: this.buildCurrentPaintStyle()
       });
@@ -1636,7 +2094,7 @@ export class SVGEditorApp {
       return;
     }
 
-    // 10. Vector Eraser ('vector-eraser')
+    // 10. Vector Eraser
     if (this.activeToolId === 'vector-eraser' && activeLayer && activeLayer.type === 'vector') {
       const hit = this.hitTestObjectsInLayer(activeLayer, world.x, world.y);
       if (hit) {
@@ -1646,7 +2104,7 @@ export class SVGEditorApp {
       return;
     }
 
-    // 11. Text Tool ('text') -> Opens floating IME-ready Textarea directly on canvas
+    // 11. Text Tool
     if (this.activeToolId === 'text' && activeLayer && activeLayer.type === 'vector') {
       const textObj = createVectorObject('text', {
         name: 'テキスト',
@@ -1669,7 +2127,7 @@ export class SVGEditorApp {
     }
 
     // ==========================================================================
-    // 12. Raster Layer Tools (G-Pen, Airbrush, Eraser, Bucket, Gradient, Blur/Smudge, Stamp)
+    // 12. Expanded 16 Raster Layer Tools
     // ==========================================================================
     if (activeLayer && activeLayer.type === 'raster') {
       const buf = this.rasterStore.ensureBuffer(activeLayer.assetId, this.doc.canvas.width, this.doc.canvas.height);
@@ -1693,10 +2151,10 @@ export class SVGEditorApp {
         return;
       }
 
-      if (this.activeToolId === 'raster-gradient') {
+      if (this.activeToolId === 'raster-gradient' || this.activeToolId === 'raster-line') {
         const beforePatch = this.rasterStore.captureRegion(activeLayer.assetId, 0, 0, buf.width, buf.height);
         this.interaction = {
-          type: 'raster-gradient',
+          type: this.activeToolId,
           assetId: activeLayer.assetId,
           startWorld: world,
           beforePatch
@@ -1704,30 +2162,41 @@ export class SVGEditorApp {
         return;
       }
 
-      // Raster Brushes / Eraser / Blur / Stamp
       const beforeFull = this.rasterStore.captureRegion(activeLayer.assetId, 0, 0, buf.width, buf.height);
       const isEraser = this.activeToolId === 'raster-eraser';
+      const presetCfg = RASTER_BRUSH_PRESETS[this.toolOptions.rasterPreset] || RASTER_BRUSH_PRESETS.gpen;
+
       const settings = {
         size: this.toolOptions.brushSize,
-        hardness: this.activeToolId === 'raster-airbrush' ? 0.15 : this.toolOptions.hardness,
+        hardness: this.activeToolId === 'raster-airbrush' ? 0.1 : this.toolOptions.hardness,
         opacity: this.paintState.opacity,
-        flow: this.activeToolId === 'raster-airbrush' ? 0.45 : 1.0,
-        spacing: 0.1,
+        flow: presetCfg.flow ?? 1.0,
+        spacing: presetCfg.spacing ?? 0.1,
         color: this.paintState.mainColor,
-        pressureSize: true,
-        pressureOpacity: this.activeToolId === 'raster-airbrush'
+        pressureSize: presetCfg.pressureSize !== false,
+        pressureOpacity: Boolean(presetCfg.pressureOpacity),
+        tiltAspect: Boolean(presetCfg.tiltAspect),
+        chisel: Boolean(presetCfg.chisel) || this.activeToolId === 'raster-marker',
+        brushMode: this.activeToolId === 'raster-noise' ? 'spatter' : this.activeToolId === 'raster-stamp' ? 'stamp' : 'normal',
+        stampShape: this.toolOptions.stampShape,
+        compositeOp: this.activeToolId === 'raster-dodge' ? this.toolOptions.dodgeMode : null,
+        symmetryMode: this.activeToolId === 'raster-symmetry' ? this.toolOptions.symmetryMode : null,
+        canvasWidth: this.doc.canvas.width,
+        canvasHeight: this.doc.canvas.height
       };
 
-      if (this.activeToolId === 'raster-blur') {
-        applyLocalBlurOrSmudge(ctx, world.x, world.y, null, null, this.toolOptions.brushSize, this.toolOptions.blurMode);
+      const pt = { x: world.x, y: world.y, pressure, tiltX: tilt.tiltX, tiltY: tilt.tiltY };
+
+      if (this.activeToolId === 'raster-blur' || this.activeToolId === 'raster-smudge') {
+        applyLocalBlurOrSmudge(ctx, world.x, world.y, null, null, this.toolOptions.brushSize, this.activeToolId === 'raster-smudge' ? 'smudge' : 'blur');
       } else {
-        strokeBrushSegment(ctx, { x: world.x, y: world.y, pressure }, { x: world.x, y: world.y, pressure }, settings, isEraser);
+        strokeBrushSegment(ctx, pt, pt, settings, isEraser);
       }
 
       this.interaction = {
         type: 'raster-stroke',
         assetId: activeLayer.assetId,
-        lastPt: { x: world.x, y: world.y, pressure },
+        lastPt: pt,
         settings,
         isEraser,
         beforeFull
@@ -1736,7 +2205,7 @@ export class SVGEditorApp {
     }
   }
 
-  handleToolPointerMove(world, sx, sy, pressure, e) {
+  handleToolPointerMove(world, sx, sy, pressure, tilt, e) {
     const it = this.interaction;
     if (!it) return;
 
@@ -1751,12 +2220,16 @@ export class SVGEditorApp {
       return;
     }
 
+    if (it.type === 'marquee-select') {
+      it.currentWorld = world;
+      return;
+    }
+
     if (it.type === 'move-objects') {
       let dx = world.x - it.startWorld.x;
       let dy = world.y - it.startWorld.y;
       if (Math.hypot(dx, dy) > 1) it.moved = true;
 
-      // Smart Guide Snapping to Canvas Center & Other Objects
       this.smartGuides = [];
       if (this.doc.ruler.smartGuides && it.beforeObjects.length === 1) {
         const b0 = getObjectBounds(it.beforeObjects[0]);
@@ -1893,7 +2366,7 @@ export class SVGEditorApp {
       const nx = last ? last.x + (world.x - last.x) * (1 - stab * 0.7) : world.x;
       const ny = last ? last.y + (world.y - last.y) * (1 - stab * 0.7) : world.y;
       if (!last || Math.hypot(nx - last.x, ny - last.y) >= 1.5) {
-        pts.push({ x: nx, y: ny, pressure });
+        pts.push({ x: nx, y: ny, pressure, tiltX: tilt.tiltX, tiltY: tilt.tiltY });
       }
       return;
     }
@@ -1913,10 +2386,10 @@ export class SVGEditorApp {
       const stab = (this.preferences.stabilizer || 4) / 20;
       const nx = it.lastPt.x + (world.x - it.lastPt.x) * (1 - stab * 0.7);
       const ny = it.lastPt.y + (world.y - it.lastPt.y) * (1 - stab * 0.7);
-      const nextPt = { x: nx, y: ny, pressure };
+      const nextPt = { x: nx, y: ny, pressure, tiltX: tilt.tiltX, tiltY: tilt.tiltY };
 
-      if (this.activeToolId === 'raster-blur') {
-        applyLocalBlurOrSmudge(ctx, nx, ny, it.lastPt.x, it.lastPt.y, this.toolOptions.brushSize, this.toolOptions.blurMode);
+      if (this.activeToolId === 'raster-blur' || this.activeToolId === 'raster-smudge') {
+        applyLocalBlurOrSmudge(ctx, nx, ny, it.lastPt.x, it.lastPt.y, this.toolOptions.brushSize, this.activeToolId === 'raster-smudge' ? 'smudge' : 'blur');
       } else {
         strokeBrushSegment(ctx, it.lastPt, nextPt, it.settings, it.isEraser);
       }
@@ -1937,6 +2410,37 @@ export class SVGEditorApp {
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, buf.width, buf.height);
       ctx.restore();
+      return;
+    }
+
+    if (it.type === 'raster-line') {
+      const buf = this.rasterStore.getBuffer(it.assetId);
+      if (!buf) return;
+      this.rasterStore.restoreRegion(it.assetId, it.beforePatch);
+      const ctx = buf.getContext('2d');
+      ctx.save();
+      ctx.globalAlpha = this.paintState.opacity;
+      ctx.strokeStyle = this.paintState.mainColor;
+      ctx.fillStyle = this.paintState.mainColor;
+      ctx.lineWidth = this.toolOptions.brushSize;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      const rx = Math.min(it.startWorld.x, world.x);
+      const ry = Math.min(it.startWorld.y, world.y);
+      const rw = Math.abs(world.x - it.startWorld.x);
+      const rh = Math.abs(world.y - it.startWorld.y);
+
+      if (this.toolOptions.rasterShapeKind === 'rect') {
+        ctx.strokeRect(rx, ry, rw, rh);
+      } else if (this.toolOptions.rasterShapeKind === 'fill-rect') {
+        ctx.fillRect(rx, ry, rw, rh);
+      } else {
+        ctx.beginPath();
+        ctx.moveTo(it.startWorld.x, it.startWorld.y);
+        ctx.lineTo(world.x, world.y);
+        ctx.stroke();
+      }
+      ctx.restore();
     }
   }
 
@@ -1946,8 +2450,36 @@ export class SVGEditorApp {
     this.smartGuides = [];
     if (!it) return;
 
+    // 1. Marquee Rectangular Drag Selection inside the active layer
+    if (it.type === 'marquee-select') {
+      const minX = Math.min(it.startWorld.x, it.currentWorld.x);
+      const minY = Math.min(it.startWorld.y, it.currentWorld.y);
+      const maxX = Math.max(it.startWorld.x, it.currentWorld.x);
+      const maxY = Math.max(it.startWorld.y, it.currentWorld.y);
+
+      if (maxX - minX > 3 || maxY - minY > 3) {
+        const layer = this.getActiveLayer();
+        const candidateLayers = (layer && layer.type === 'vector')
+          ? [layer]
+          : flattenLayers(this.doc.rootGroup).filter(l => l.effectiveVisible && !l.effectiveLocked && l.layer.type === 'vector').map(l => l.layer);
+
+        for (const lyr of candidateLayers) {
+          for (const obj of lyr.objects) {
+            if (!obj.visible || obj.locked) continue;
+            const b = getObjectBounds(obj);
+            const overlaps = !(b.x + b.width < minX || b.x > maxX || b.y + b.height < minY || b.y > maxY);
+            if (overlaps) {
+              this.selectedObjectIds.add(obj.id);
+            }
+          }
+        }
+      }
+      this.refreshAllPanels();
+      this.requestRender();
+      return;
+    }
+
     if (it.type === 'lasso' && it.points.length > 2) {
-      // Select all vector objects whose centers lie inside the lasso polygon
       this.selectedObjectIds.clear();
       const layer = this.getActiveLayer();
       if (layer && layer.type === 'vector') {
@@ -1993,7 +2525,7 @@ export class SVGEditorApp {
         createAddObjectCommand(it.layerId, it.object, 'ベクターブラシを描画'),
         true
       );
-    } else if (it.type === 'raster-stroke' || it.type === 'raster-gradient') {
+    } else if (it.type === 'raster-stroke' || it.type === 'raster-gradient' || it.type === 'raster-line') {
       const buf = this.rasterStore.getBuffer(it.assetId);
       if (buf) {
         const afterFull = this.rasterStore.captureRegion(it.assetId, 0, 0, buf.width, buf.height);
@@ -2002,7 +2534,7 @@ export class SVGEditorApp {
             it.assetId,
             it.beforeFull || it.beforePatch,
             afterFull,
-            it.type === 'raster-gradient' ? 'ラスターグラデーション' : (it.isEraser ? 'ラスター消しゴム' : 'ラスターブラシ描画'),
+            it.type === 'raster-gradient' ? 'ラスターグラデーション' : it.type === 'raster-line' ? 'ラスター図形描画' : (it.isEraser ? 'ラスター消しゴム' : 'ラスターブラシ描画'),
             it.isEraser ? 'raster-eraser' : 'raster-pen'
           ),
           true
@@ -2035,6 +2567,13 @@ export class SVGEditorApp {
   }
 
   hitTestObjects(wx, wy) {
+    const activeLayer = this.getActiveLayer();
+    // Prioritize hitting objects in the currently selected vector layer first
+    if (activeLayer && activeLayer.type === 'vector' && activeLayer.visible && !activeLayer.locked) {
+      const hitInActive = this.hitTestObjectsInLayer(activeLayer, wx, wy);
+      if (hitInActive) return hitInActive;
+    }
+
     const allLayers = flattenLayers(this.doc.rootGroup);
     for (const entry of allLayers) {
       if (!entry.effectiveVisible || entry.effectiveLocked) continue;
@@ -2111,10 +2650,6 @@ export class SVGEditorApp {
     this.commands.execute(createUpdateObjectsCommand(before, after, '塗り/線スタイルを変更', 'paint-change'));
   }
 
-  // ============================================================================
-  // Floating IME-Compatible Text Editor on Canvas
-  // ============================================================================
-
   openImeTextEditor(textObj, screenX, screenY) {
     const editor = document.getElementById('canvas-ime-editor');
     if (!editor) return;
@@ -2167,7 +2702,7 @@ export class SVGEditorApp {
   }
 
   // ============================================================================
-  // Color Picker Wheel, Multi-Model Sliders (RGB/HSV/HSL/CMYK) & Gamut Alert
+  // Color Picker Wheel & Custom Magnetic Sliders
   // ============================================================================
 
   initColorPickerUI() {
@@ -2229,7 +2764,6 @@ export class SVGEditorApp {
 
     ctx.clearRect(0, 0, c.width, c.height);
 
-    // Draw Hue Ring
     for (let angle = 0; angle < 360; angle += 2) {
       const r1 = (angle - 1) * DEG_TO_RAD;
       const r2 = (angle + 2) * DEG_TO_RAD;
@@ -2240,7 +2774,6 @@ export class SVGEditorApp {
       ctx.stroke();
     }
 
-    // Draw inner Saturation-Value Square
     const activeHex = this.getActiveColor();
     const { r, g, b } = hexToRgbObj(activeHex);
     const hsv = rgbToHsv(r, g, b);
@@ -2349,7 +2882,6 @@ export class SVGEditorApp {
 
     this.drawHueSvWheel();
 
-    // Out-of-gamut check
     const gamutCheck = checkColorGamut(activeHex, this.doc.canvas.colorModel);
     const alertBox = document.getElementById('gamut-alert-box');
     if (alertBox) {
@@ -2357,7 +2889,6 @@ export class SVGEditorApp {
       document.getElementById('gamut-alert-text').textContent = `⚠ ${gamutCheck.reason}`;
     }
 
-    // Dynamic sliders (RGB / HSV / HSL / CMYK)
     const mode = document.getElementById('color-mode-select').value;
     const slidersBox = document.getElementById('color-sliders-box');
     const rgb = hexToRgbObj(activeHex);
@@ -2366,10 +2897,11 @@ export class SVGEditorApp {
       slidersBox.innerHTML = ['r', 'g', 'b'].map(ch => `
         <div style="display:flex; align-items:center; gap:6px; font-size:0.75rem;">
           <span style="width:14px; text-transform:uppercase;">${ch}</span>
-          <input type="range" data-rgb-ch="${ch}" min="0" max="255" value="${rgb[ch]}" style="flex:1">
+          <input type="range" data-rgb-ch="${ch}" data-snap="none" min="0" max="255" value="${rgb[ch]}" style="flex:1">
           <span style="width:26px;">${rgb[ch]}</span>
         </div>
       `).join('');
+      upgradeCustomSliders(slidersBox);
       slidersBox.querySelectorAll('input[data-rgb-ch]').forEach(inp => {
         inp.oninput = () => {
           rgb[inp.getAttribute('data-rgb-ch')] = Number(inp.value);
@@ -2381,10 +2913,11 @@ export class SVGEditorApp {
       slidersBox.innerHTML = ['c', 'm', 'y', 'k'].map(ch => `
         <div style="display:flex; align-items:center; gap:6px; font-size:0.75rem;">
           <span style="width:14px; text-transform:uppercase;">${ch}</span>
-          <input type="range" data-cmyk-ch="${ch}" min="0" max="100" value="${cmyk[ch]}" style="flex:1">
+          <input type="range" data-cmyk-ch="${ch}" data-snap="percent" min="0" max="100" value="${cmyk[ch]}" style="flex:1">
           <span style="width:30px;">${cmyk[ch]}%</span>
         </div>
       `).join('');
+      upgradeCustomSliders(slidersBox);
       slidersBox.querySelectorAll('input[data-cmyk-ch]').forEach(inp => {
         inp.oninput = () => {
           cmyk[inp.getAttribute('data-cmyk-ch')] = Number(inp.value);
@@ -2395,16 +2928,17 @@ export class SVGEditorApp {
     } else {
       const hsv = rgbToHsv(rgb.r, rgb.g, rgb.b);
       slidersBox.innerHTML = [
-        { k: 'h', max: 360, v: hsv.h },
-        { k: 's', max: 100, v: hsv.s },
-        { k: 'v', max: 100, v: hsv.v }
+        { k: 'h', max: 360, v: hsv.h, snap: 'angle' },
+        { k: 's', max: 100, v: hsv.s, snap: 'percent' },
+        { k: 'v', max: 100, v: hsv.v, snap: 'percent' }
       ].map(item => `
         <div style="display:flex; align-items:center; gap:6px; font-size:0.75rem;">
           <span style="width:14px; text-transform:uppercase;">${item.k}</span>
-          <input type="range" data-hsv-ch="${item.k}" min="0" max="${item.max}" value="${item.v}" style="flex:1">
+          <input type="range" data-hsv-ch="${item.k}" data-snap="${item.snap}" min="0" max="${item.max}" value="${item.v}" style="flex:1">
           <span style="width:28px;">${item.v}</span>
         </div>
       `).join('');
+      upgradeCustomSliders(slidersBox);
       slidersBox.querySelectorAll('input[data-hsv-ch]').forEach(inp => {
         inp.oninput = () => {
           hsv[inp.getAttribute('data-hsv-ch')] = Number(inp.value);
@@ -2414,7 +2948,6 @@ export class SVGEditorApp {
       });
     }
 
-    // Swatches & recent colors
     const swatchGrid = document.getElementById('swatch-grid');
     swatchGrid.innerHTML = (this.doc.swatches || []).map(col =>
       `<div class="swatch-cell" style="background:${col}" data-swatch="${col}" title="${col}"></div>`
@@ -2435,11 +2968,11 @@ export class SVGEditorApp {
   }
 
   // ============================================================================
-  // Layer Tree Management (Vector / Raster / Group + Vector -> Raster Conversion)
+  // Layer Tree with Live Mini-Thumbnails & Long-Press Magnified Lightbox
   // ============================================================================
 
   bindLayerPanelEvents() {
-    document.getElementById('btn-add-vec-layer').onclick = () => {
+    const addVec = () => {
       const before = deepClone(this.doc.rootGroup);
       const count = flattenLayers(this.doc.rootGroup).filter(l => l.layer.type === 'vector').length + 1;
       const newLayer = createVectorLayer(`ベクターレイヤー ${count}`);
@@ -2449,8 +2982,7 @@ export class SVGEditorApp {
       this.validateActiveToolForLayer();
       this.refreshAllPanels();
     };
-
-    document.getElementById('btn-add-ras-layer').onclick = () => {
+    const addRas = () => {
       const before = deepClone(this.doc.rootGroup);
       const count = flattenLayers(this.doc.rootGroup).filter(l => l.layer.type === 'raster').length + 1;
       const newLayer = createRasterLayer(`ラスターレイヤー ${count}`, this.doc.canvas.width, this.doc.canvas.height, 1);
@@ -2461,8 +2993,7 @@ export class SVGEditorApp {
       this.validateActiveToolForLayer();
       this.refreshAllPanels();
     };
-
-    document.getElementById('btn-add-grp-layer').onclick = () => {
+    const addGrp = () => {
       const before = deepClone(this.doc.rootGroup);
       const count = flattenLayers(this.doc.rootGroup).filter(l => l.layer.type === 'group').length + 1;
       const newGrp = createGroupLayer(`グループ ${count}`);
@@ -2472,6 +3003,13 @@ export class SVGEditorApp {
       this.validateActiveToolForLayer();
       this.refreshAllPanels();
     };
+
+    document.getElementById('btn-add-vec-layer').onclick = addVec;
+    document.getElementById('btn-add-ras-layer').onclick = addRas;
+    document.getElementById('btn-add-grp-layer').onclick = addGrp;
+    document.getElementById('menu-add-vec').onclick = addVec;
+    document.getElementById('menu-add-ras').onclick = addRas;
+    document.getElementById('menu-add-grp').onclick = addGrp;
 
     document.getElementById('btn-layer-up').onclick = () => this.moveActiveLayerOrder(1);
     document.getElementById('btn-layer-down').onclick = () => this.moveActiveLayerOrder(-1);
@@ -2534,6 +3072,12 @@ export class SVGEditorApp {
       document.getElementById('layer-opacity-val').textContent = `${e.target.value}%`;
       this.requestRender();
     };
+
+    // Lightbox click/tap anywhere to close
+    const lightbox = document.getElementById('layer-preview-lightbox');
+    if (lightbox) {
+      lightbox.onclick = () => lightbox.classList.remove('open');
+    }
   }
 
   _insertLayerAboveActive(newLayer) {
@@ -2575,7 +3119,6 @@ export class SVGEditorApp {
       this.activeLayerId = lower.id;
       this.commands.execute(createLayerTreeCommand(before, this.doc.rootGroup, 'ベクターレイヤーを結合'), true);
     } else {
-      // Rasterize both into a merged raster layer
       const mergedRaster = createRasterLayer(`${lower.name} (結合)`, this.doc.canvas.width, this.doc.canvas.height, 1);
       const buf = this.rasterStore.ensureBuffer(mergedRaster.assetId, this.doc.canvas.width, this.doc.canvas.height);
       const ctx = buf.getContext('2d');
@@ -2587,9 +3130,6 @@ export class SVGEditorApp {
     }
   }
 
-  /**
-   * Vector -> Raster Conversion (Duplicates selected VectorLayer or GroupLayer into a new RasterLayer)
-   */
   rasterizeActiveVectorLayer(dpiScale = 1, replaceOriginal = false) {
     const layer = this.getActiveLayer();
     if (!layer || (layer.type !== 'vector' && layer.type !== 'group')) {
@@ -2612,6 +3152,52 @@ export class SVGEditorApp {
     this.showToast(`「${layer.name}」をラスターレイヤーとして複製変換しました`);
   }
 
+  /**
+   * Renders a single layer's content onto a target preview canvas (for both mini-thumbnails & magnified lightbox)
+   */
+  _drawSingleLayerPreview(targetCanvas, layer) {
+    if (!targetCanvas || !layer) return;
+    const ctx = targetCanvas.getContext('2d');
+    const tw = targetCanvas.width;
+    const th = targetCanvas.height;
+    ctx.clearRect(0, 0, tw, th);
+
+    const cw = this.doc.canvas.width || 1200;
+    const ch = this.doc.canvas.height || 800;
+    const scale = Math.min(tw / cw, th / ch);
+    const ox = (tw - cw * scale) / 2;
+    const oy = (th - ch * scale) / 2;
+
+    ctx.save();
+    ctx.translate(ox, oy);
+    ctx.scale(scale, scale);
+
+    if (layer.type === 'vector') {
+      for (const obj of layer.objects || []) {
+        drawVectorObjectToContext(ctx, obj, this.doc, this.imageCache);
+      }
+    } else if (layer.type === 'raster') {
+      const buf = this.rasterStore.getBuffer(layer.assetId);
+      if (buf && !buf._headlessData) {
+        ctx.drawImage(buf, 0, 0, cw, ch);
+      }
+    } else if (layer.type === 'group') {
+      renderLayerTreeToContext(ctx, layer, this.doc, this.rasterStore, this.imageCache);
+    }
+    ctx.restore();
+  }
+
+  openLayerMagnifiedPreview(layer) {
+    const lightbox = document.getElementById('layer-preview-lightbox');
+    const titleEl = document.getElementById('layer-preview-title');
+    const bigCanvas = document.getElementById('layer-preview-big-canvas');
+    if (!lightbox || !bigCanvas || !layer) return;
+
+    titleEl.textContent = `🔍 レイヤー拡大プレビュー: ${layer.name} (${layer.type.toUpperCase()})`;
+    this._drawSingleLayerPreview(bigCanvas, layer);
+    lightbox.classList.add('open');
+  }
+
   renderLayersPanel() {
     const listEl = document.getElementById('layer-list');
     if (!listEl) return;
@@ -2623,7 +3209,7 @@ export class SVGEditorApp {
       badge.textContent = active.type === 'vector' ? 'Vector' : active.type === 'raster' ? 'Raster' : 'Group';
       document.getElementById('layer-blend-select').value = active.blendMode || 'normal';
       const opPct = Math.round((active.opacity ?? 1) * 100);
-      document.getElementById('layer-opacity-slider').value = opPct;
+      setSliderValue('layer-opacity-slider', opPct);
       document.getElementById('layer-opacity-val').textContent = `${opPct}%`;
     }
 
@@ -2633,19 +3219,47 @@ export class SVGEditorApp {
       const typeLabel = layer.type === 'vector' ? 'V' : layer.type === 'raster' ? 'R' : 'G';
       const subInfo = layer.type === 'vector' ? `(${layer.objects.length})` : '';
       return `
-        <li class="layer-row ${isSelected ? 'selected' : ''}" data-layer-id="${layer.id}" draggable="true" style="padding-left:${8 + depth * 16}px">
+        <li class="layer-row ${isSelected ? 'selected' : ''}" data-layer-id="${layer.id}" style="padding-left:${8 + depth * 14}px">
           <button type="button" class="lyr-vis-btn" data-vis-id="${layer.id}" title="表示/非表示" style="padding:2px; border:none; background:none;">
             ${renderIcon(layer.visible ? 'eye-open' : 'eye-closed', 15)}
           </button>
           <button type="button" class="lyr-lock-btn" data-lock-id="${layer.id}" title="ロック切替" style="padding:2px; border:none; background:none;">
             ${renderIcon(layer.locked ? 'lock-closed' : 'lock-open', 15)}
           </button>
+          <canvas class="layer-thumb-canvas" width="72" height="52" data-thumb-id="${layer.id}" title="長押しでレイヤー拡大プレビューを表示"></canvas>
           <span class="layer-type-pill ${layer.type}">${typeLabel}</span>
           ${layer.clipping ? `<span title="下のレイヤーでクリッピング中" style="color:var(--accent-hover)">↳</span>` : ''}
           <span class="layer-name" data-rename-id="${layer.id}" title="ダブルクリックで名前変更">${layer.name} <small style="color:var(--text-muted)">${subInfo}</small></span>
         </li>
       `;
     }).join('');
+
+    // Render mini thumbnails and attach long-press listener for magnified lightbox
+    listEl.querySelectorAll('.layer-thumb-canvas').forEach(thumbCanvas => {
+      const lid = thumbCanvas.getAttribute('data-thumb-id');
+      const found = findLayerById(this.doc.rootGroup, lid);
+      if (found) {
+        this._drawSingleLayerPreview(thumbCanvas, found.layer);
+
+        let thumbTimer = null;
+        const clearThumbTimer = () => {
+          if (thumbTimer) {
+            clearTimeout(thumbTimer);
+            thumbTimer = null;
+          }
+        };
+        thumbCanvas.addEventListener('pointerdown', (e) => {
+          e.stopPropagation();
+          clearThumbTimer();
+          thumbTimer = setTimeout(() => {
+            this.openLayerMagnifiedPreview(found.layer);
+          }, 420);
+        });
+        thumbCanvas.addEventListener('pointerup', clearThumbTimer);
+        thumbCanvas.addEventListener('pointerleave', clearThumbTimer);
+        thumbCanvas.addEventListener('pointercancel', clearThumbTimer);
+      }
+    });
 
     listEl.querySelectorAll('.layer-row').forEach(row => {
       const lid = row.getAttribute('data-layer-id');
@@ -2756,7 +3370,7 @@ export class SVGEditorApp {
     box.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.8rem;">
         <strong>${obj.name} (${obj.kind})</strong>
-        <span style="color:var(--text-muted)">${selected.length > 1 ? `他+${selected.length - 1}個` : ''}</span>
+        <span style="color:var(--text-muted)">${selected.length > 1 ? `他+${selected.length - 1}個選択中` : ''}</span>
       </div>
       <div class="form-grid" style="grid-template-columns: 1fr 1fr; gap:6px;">
         <div class="form-field">
@@ -2789,7 +3403,7 @@ export class SVGEditorApp {
         <button type="button" id="prop-front" style="flex:1; font-size:0.75rem;">最前面</button>
         <button type="button" id="prop-back" style="flex:1; font-size:0.75rem;">最背面</button>
         <button type="button" id="prop-offset" style="flex:1; font-size:0.75rem;">オフセット</button>
-        <button type="button" id="prop-del" style="flex:1; font-size:0.75rem; color:var(--danger)">削除</button>
+        <button type="button" id="prop-del" style="flex:1; font-size:0.75rem; color:var(--danger)">削除 (Del)</button>
       </div>
     `;
 
@@ -2830,7 +3444,6 @@ export class SVGEditorApp {
     if (selected.length === 0) return;
     const before = selected.map(o => deepClone(o));
 
-    // If 1 object selected, align relative to Canvas Artboard; if multiple, align to selection group bounds
     let refX = 0, refY = 0, refW = this.doc.canvas.width, refH = this.doc.canvas.height;
     if (selected.length > 1) {
       const boundsList = selected.map(getObjectBounds);
@@ -2869,7 +3482,7 @@ export class SVGEditorApp {
   runBooleanOnSelection(op = 'union') {
     const selected = this.getSelectedObjects();
     if (selected.length < 2) {
-      this.showToast('パス演算を行うには、同じベクターレイヤー上の2つの図形をShift+クリックで選択してください');
+      this.showToast('パス演算を行うには、2つの図形を選択してください（選択ツールで範囲選択またはShift+クリック）');
       return;
     }
     const foundA = findObjectById(this.doc.rootGroup, selected[0].id);
@@ -2929,6 +3542,7 @@ export class SVGEditorApp {
     const ids = Array.from(this.selectedObjectIds);
     this.selectedObjectIds.clear();
     this.commands.execute(createDeleteObjectsCommand(ids, this.doc));
+    this.showToast(`${ids.length}個のオブジェクトを削除しました (Ctrl+Zで復元可能)`);
   }
 
   duplicateSelection() {
@@ -2949,7 +3563,7 @@ export class SVGEditorApp {
   }
 
   // ============================================================================
-  // History Panel, Status Bar, Top Menu & Keyboard Shortcuts
+  // History Panel, Status Bar, Dropdown Menubar, Print & Customizable Keybindings
   // ============================================================================
 
   renderHistoryPanel() {
@@ -3014,7 +3628,9 @@ export class SVGEditorApp {
 
     const activeLayer = this.getActiveLayer();
     document.getElementById('st-layer').textContent = `Layer: ${activeLayer ? activeLayer.name : '--'}`;
-    document.getElementById('st-pressure').textContent = `筆圧: ${Math.round((this.hoverWorldPos.pressure || 0) * 100)}%`;
+
+    const tiltDeg = Math.round(Math.hypot(this.hoverWorldPos.tiltX || 0, this.hoverWorldPos.tiltY || 0));
+    document.getElementById('st-pressure').textContent = `筆圧: ${Math.round((this.hoverWorldPos.pressure || 0) * 100)}% / 傾き: ${tiltDeg}°`;
 
     const layerCount = flattenLayers(this.doc.rootGroup).length;
     const memMB = estimateCanvasMemoryMB(this.doc.canvas.width, this.doc.canvas.height, this.doc.canvas.bitDepth, layerCount);
@@ -3027,7 +3643,12 @@ export class SVGEditorApp {
     this.refreshAllPanels();
     this.requestRender();
 
-    // Debounced IndexedDB Crash-Safe Auto-Save
+    // Strictly respect Cookie/Storage consent before writing any autosave data!
+    if (!hasStorageConsent()) {
+      this.updateCookieConsentBanner();
+      return;
+    }
+
     clearTimeout(this._autosaveTimer);
     const saveEl = document.getElementById('st-save');
     if (saveEl) {
@@ -3035,12 +3656,12 @@ export class SVGEditorApp {
       saveEl.style.color = 'var(--warning)';
     }
     this._autosaveTimer = setTimeout(async () => {
-      await saveAutosaveSnapshot(this.doc, this.rasterStore);
+      await saveAutosaveSnapshot(this.doc, this.rasterStore, this.viewport);
       if (saveEl) {
         saveEl.textContent = `● ${t('status.saved')}`;
         saveEl.style.color = 'var(--vector-badge)';
       }
-    }, 650);
+    }, 550);
   }
 
   refreshAllPanels() {
@@ -3054,10 +3675,24 @@ export class SVGEditorApp {
   }
 
   // ============================================================================
-  // File Operations, Exports & Top Menu Actions
+  // Dropdown Menubar, Print Canvas & File Operations
   // ============================================================================
 
   bindTopMenuEvents() {
+    // Support touch/click toggle on top menu dropdowns in addition to CSS hover
+    document.querySelectorAll('.menu-dropdown > .menu-trigger').forEach(trigger => {
+      trigger.onclick = (e) => {
+        e.stopPropagation();
+        const parent = trigger.parentElement;
+        const wasOpen = parent.classList.contains('open');
+        document.querySelectorAll('.menu-dropdown.open').forEach(d => d.classList.remove('open'));
+        if (!wasOpen) parent.classList.add('open');
+      };
+    });
+    document.addEventListener('click', () => {
+      document.querySelectorAll('.menu-dropdown.open').forEach(d => d.classList.remove('open'));
+    });
+
     document.getElementById('btn-toggle-left').onclick = () => {
       const tb = document.getElementById('left-toolbar');
       tb.style.display = tb.style.display === 'none' ? 'flex' : 'none';
@@ -3068,47 +3703,71 @@ export class SVGEditorApp {
       setTimeout(() => this.resizeViewportCanvases(), 220);
     };
 
-    // Collapsible dock headers
-    document.querySelectorAll('.dock-header').forEach(hdr => {
+    // Standard right dock panels are collapsible (fold/expand only), whereas #panel-tool-inspector is closable
+    document.querySelectorAll('.dock-panel:not(#panel-tool-inspector) > .dock-header').forEach(hdr => {
       hdr.onclick = (e) => {
-        if (e.target.closest('select')) return;
+        if (e.target.closest('select') || e.target.closest('button')) return;
         hdr.parentElement.classList.toggle('folded');
       };
     });
 
+    // File menu actions
     document.getElementById('btn-new-doc').onclick = () => showNewDocumentModal(this);
     document.getElementById('btn-open-file').onclick = () => document.getElementById('hidden-file-input').click();
     document.getElementById('hidden-file-input').onchange = (e) => this.handleFileOpen(e.target);
-
     document.getElementById('btn-save-workspace').onclick = () => this.saveWorkspaceArchive();
     document.getElementById('btn-quick-svg').onclick = () => this.quickExportSVG();
+    document.getElementById('menu-export-svg').onclick = () => this.quickExportSVG();
     document.getElementById('btn-quick-png').onclick = () => this.exportRasterFormat('png', 1, 1.0, false, this.doc.metadata.title || 'artwork');
+    document.getElementById('menu-export-png').onclick = () => this.exportRasterFormat('png', 1, 1.0, false, this.doc.metadata.title || 'artwork');
     document.getElementById('btn-custom-export').onclick = () => showCustomExportModal(this);
+    document.getElementById('btn-print-doc').onclick = () => this.printCanvasArtwork();
+    document.getElementById('btn-quick-print').onclick = () => this.printCanvasArtwork();
 
+    // Edit menu actions
     document.getElementById('btn-undo').onclick = () => this.commands.undo();
     document.getElementById('btn-redo').onclick = () => this.commands.redo();
+    document.getElementById('menu-undo').onclick = () => this.commands.undo();
+    document.getElementById('menu-redo').onclick = () => this.commands.redo();
+    document.getElementById('menu-dup-obj').onclick = () => this.duplicateSelection();
+    document.getElementById('menu-del-obj').onclick = () => this.deleteSelection();
+    document.getElementById('menu-open-prefs').onclick = () => showPreferencesModal(this, 'general');
+    document.getElementById('btn-settings').onclick = () => showPreferencesModal(this, 'general');
+
+    // Canvas & Layer menu actions
     document.getElementById('btn-canvas-resize').onclick = () => showCanvasResizeModal(this);
     document.getElementById('btn-rasterize-layer').onclick = () => this.rasterizeActiveVectorLayer(1, false);
-    document.getElementById('btn-settings').onclick = () => showPreferencesModal(this);
+    document.getElementById('menu-clear-guides').onclick = () => {
+      this.doc.guides = [];
+      this.requestRender();
+      this.showToast('ガイドラインをすべて消去しました');
+    };
 
-    document.getElementById('btn-theme').onclick = () => {
+    // View menu actions
+    document.getElementById('menu-zoom-fit').onclick = () => this.zoomToFit();
+    document.getElementById('menu-zoom-100').onclick = () => this.setZoom(1.0);
+    document.getElementById('menu-rot-reset').onclick = () => {
+      this.viewport.rotation = 0;
+      this._syncNavigatorSliders();
+      this.requestRender();
+    };
+    document.getElementById('menu-toggle-grid').onclick = () => {
+      this.doc.grid.enabled = !this.doc.grid.enabled;
+      this.requestRender();
+    };
+    document.getElementById('menu-toggle-theme').onclick = () => {
       const root = document.documentElement;
       const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
       root.setAttribute('data-theme', next);
+      this.preferences.theme = next;
+      if (hasStorageConsent()) savePreferencesToStorage({ preferences: this.preferences, keybindings: this.keybindings });
       this.requestRender();
     };
 
-    document.getElementById('btn-lang').onclick = () => {
-      const next = getLang() === 'ja' ? 'en' : 'ja';
-      setLang(next);
-      document.querySelectorAll('[data-i18n]').forEach(el => {
-        el.textContent = t(el.getAttribute('data-i18n'));
-      });
-      this.refreshAllPanels();
-      this.showToast(next === 'ja' ? '日本語表示に切り替えました' : 'Switched language to English');
-    };
-
-    document.getElementById('btn-help').onclick = () => showShortcutsModal();
+    // Help menu actions
+    document.getElementById('btn-help').onclick = () => showShortcutsModal(this);
+    document.getElementById('menu-shortcuts').onclick = () => showShortcutsModal(this);
+    document.getElementById('menu-about').onclick = () => showAboutModal();
 
     // Context menu actions
     document.querySelectorAll('#canvas-context-menu button[data-ctx-action]').forEach(btn => {
@@ -3128,6 +3787,40 @@ export class SVGEditorApp {
     });
   }
 
+  /**
+   * High-Resolution Vector + Raster Print Feature
+   */
+  printCanvasArtwork() {
+    const { svgString } = serializeDocumentToSVG(this.doc, this.rasterStore, { optimize: true });
+    const printWin = window.open('', '_blank', 'width=900,height=700');
+    if (!printWin) {
+      window.print();
+      return;
+    }
+    printWin.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Print — ${this.doc.metadata.title || 'SVG EDITOR'}</title>
+        <style>
+          @page { margin: 5mm; size: auto; }
+          html, body { margin: 0; padding: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #fff; }
+          svg { max-width: 100%; max-height: 95vh; height: auto; width: auto; }
+        </style>
+      </head>
+      <body>
+        ${svgString}
+        <script>
+          window.onload = function() {
+            setTimeout(function() { window.print(); window.close(); }, 200);
+          };
+        <\/script>
+      </body>
+      </html>
+    `);
+    printWin.document.close();
+  }
+
   createNewDocument(options) {
     this.doc = createDocument(options);
     this.rasterStore = new RasterStore();
@@ -3137,6 +3830,7 @@ export class SVGEditorApp {
     this.selectedObjectIds.clear();
     this.commands.setDocument(this.doc);
     this.commands.rasterStore = this.rasterStore;
+    this.syncToolbarCollapseToActiveLayer();
     this.zoomToFit();
     this.refreshAllPanels();
     this.showToast(`新規キャンバス (${this.doc.canvas.width}×${this.doc.canvas.height}px) を作成しました`);
@@ -3237,6 +3931,7 @@ export class SVGEditorApp {
         this.activeLayerId = flat[0]?.layer.id || null;
         this.selectedObjectIds.clear();
         this.commands.setDocument(this.doc);
+        this.syncToolbarCollapseToActiveLayer();
         this.zoomToFit();
         this.refreshAllPanels();
         if (recoveryWarnings.length > 0) {
@@ -3254,6 +3949,7 @@ export class SVGEditorApp {
         this.doc.rootGroup.children.push(importedLayer);
         this.activeLayerId = importedLayer.id;
         this.commands.execute(createLayerTreeCommand(before, this.doc.rootGroup, `SVG「${file.name}」を読み込み`), true);
+        this.syncToolbarCollapseToActiveLayer();
         this.zoomToFit();
         let msg = `SVGを読み込みました (${objects.length}要素)`;
         if (sanitizedReport.removedScripts > 0 || sanitizedReport.removedEventAttrs > 0) {
@@ -3293,10 +3989,6 @@ export class SVGEditorApp {
     setTimeout(() => URL.revokeObjectURL(url), 2500);
   }
 
-  // ============================================================================
-  // Context Menu, Toast Notifications & Keyboard Shortcuts
-  // ============================================================================
-
   openContextMenu(clientX, clientY) {
     const menu = document.getElementById('canvas-context-menu');
     if (!menu) return;
@@ -3322,11 +4014,14 @@ export class SVGEditorApp {
     }, 3400);
   }
 
+  /**
+   * Customizable Keyboard Shortcut Dispatcher (supports Ctrl/Cmd, Shift, Alt combos & Delete/Backspace)
+   */
   bindKeyboardShortcuts() {
     window.addEventListener('keydown', (e) => {
-      // Ignore shortcuts while typing in inputs or IME text editor
       const tag = document.activeElement?.tagName.toLowerCase();
       if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+      if (document.getElementById('modal-backdrop')?.classList.contains('open')) return;
 
       if (e.code === 'Space') {
         this.spacePanActive = true;
@@ -3336,11 +4031,16 @@ export class SVGEditorApp {
 
       if (e.key === '?' || (e.shiftKey && e.key === '/')) {
         e.preventDefault();
-        showShortcutsModal();
+        showShortcutsModal(this);
         return;
       }
 
       if (e.key === 'Escape') {
+        const lightbox = document.getElementById('layer-preview-lightbox');
+        if (lightbox && lightbox.classList.contains('open')) {
+          lightbox.classList.remove('open');
+          return;
+        }
         if (this.activePenObject) {
           const activeLayer = this.getActiveLayer();
           this.commitActivePenPath(activeLayer);
@@ -3360,43 +4060,56 @@ export class SVGEditorApp {
         return;
       }
 
-      // Ctrl / Cmd shortcuts
-      if (e.ctrlKey || e.metaKey) {
-        const k = e.key.toLowerCase();
-        if (k === 'z' && !e.shiftKey) {
-          e.preventDefault();
-          this.commands.undo();
-        } else if (k === 'y' || (k === 'z' && e.shiftKey)) {
-          e.preventDefault();
-          this.commands.redo();
-        } else if (k === 'd') {
-          e.preventDefault();
-          this.duplicateSelection();
-        } else if (k === 's') {
-          e.preventDefault();
-          this.saveWorkspaceArchive();
-        } else if (k === '0') {
-          e.preventDefault();
-          this.zoomToFit();
-        }
-        return;
-      }
-
+      // Always support Delete and Backspace to delete selected objects
       if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault();
         this.deleteSelection();
         return;
       }
 
-      const keyUpper = e.key.toUpperCase();
-      if (keyUpper === 'X') {
-        this.swapMainSubColors();
-        return;
+      // Build normalized key combo string: e.g. 'Ctrl+Z', 'Ctrl+Shift+Z', 'V'
+      const parts = [];
+      if (e.ctrlKey || e.metaKey) parts.push('Ctrl');
+      if (e.shiftKey && e.key.length > 1) parts.push('Shift');
+      else if (e.shiftKey && (e.ctrlKey || e.metaKey || e.altKey)) parts.push('Shift');
+      if (e.altKey) parts.push('Alt');
+      const mainKey = e.key.length === 1 ? e.key.toUpperCase() : e.key;
+      if (!['Control', 'Shift', 'Alt', 'Meta'].includes(e.key)) {
+        parts.push(mainKey);
+      }
+      const combo = parts.join('+');
+
+      // Match against user-customizable this.keybindings
+      for (const [actionKey, boundCombo] of Object.entries(this.keybindings)) {
+        if (boundCombo && boundCombo.toUpperCase() === combo.toUpperCase()) {
+          e.preventDefault();
+          if (actionKey.startsWith('tool:')) {
+            this.selectTool(actionKey.slice(5));
+          } else if (actionKey === 'action:undo') {
+            this.commands.undo();
+          } else if (actionKey === 'action:redo') {
+            this.commands.redo();
+          } else if (actionKey === 'action:delete') {
+            this.deleteSelection();
+          } else if (actionKey === 'action:duplicate') {
+            this.duplicateSelection();
+          } else if (actionKey === 'action:swapColors') {
+            this.swapMainSubColors();
+          } else if (actionKey === 'action:saveWorkspace') {
+            this.saveWorkspaceArchive();
+          } else if (actionKey === 'action:print') {
+            this.printCanvasArtwork();
+          } else if (actionKey === 'action:zoomFit') {
+            this.zoomToFit();
+          }
+          return;
+        }
       }
 
-      const matchedTool = TOOL_DEFINITIONS.find(t => t.shortcut === keyUpper);
-      if (matchedTool) {
-        this.selectTool(matchedTool.id);
+      // Fallback Ctrl+Shift+Z for Redo
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        this.commands.redo();
       }
     });
 
@@ -3409,7 +4122,6 @@ export class SVGEditorApp {
   }
 }
 
-// Bootstrap Application
 window.addEventListener('DOMContentLoaded', () => {
   const app = new SVGEditorApp();
   window.svgEditorApp = app;

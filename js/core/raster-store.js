@@ -1,11 +1,27 @@
 /**
- * Raster Offscreen Buffer Store & High-Performance Pixel Brush Engine
+ * Raster Offscreen Buffer Store & Expanded 18-Tool Pixel Brush Engine
  * Supports:
  * - OffscreenCanvas / HTMLCanvasElement buffers keyed by assetId
  * - Partial Tile Delta Snapshots for fast Undo/Redo with minimal memory footprint
- * - Multiple brush types (Pencil, G-Pen, Round Pen, Marker, Airbrush, Watercolor, Eraser, Blur, Smudge, Stamp)
- * - Scanline Flood Fill (Bucket with tolerance & contiguous/global mode)
- * - Raster Gradient Fill
+ * - Rich brush family:
+ *   1. G-Pen (強弱インク)
+ *   2. Maru-Pen / Mapping Pen (極細丸ペン)
+ *   3. Sketch Pencil (デッサン鉛筆)
+ *   4. Chisel Marker / Felt Pen (コピックマーカー / 平筆)
+ *   5. Soft Airbrush (ソフトエアブラシ)
+ *   6. Watercolor Brush (透明水彩・混色風)
+ *   7. Thick Oil Paint (厚塗り油彩)
+ *   8. Hard/Soft Eraser (ラスター消しゴム)
+ *   9. Flood Fill Bucket (許容値・隣接/全体バケツ)
+ *   10. Raster Gradient Fill (線形/放射グラデーション)
+ *   11. Blur Brush (ぼかし)
+ *   12. Smudge / Mixer Finger (指先・色伸ばし)
+ *   13. Dodge / Burn (覆い焼き発光・焼き込み陰影)
+ *   14. Pattern / Deco Stamp (デコレーションスタンプ: 星・ドット・ハート・キラメキ)
+ *   15. Raster Marquee Select & Fill/Clear (ラスター矩形範囲塗り・消去)
+ *   16. Raster Line & Geometric Figure (ラスター直線/矩形描画)
+ *   17. Symmetry Mirror Brush (左右対称・万華鏡定規ブラシ)
+ *   18. Spatter / Noise Spray (スパッタリング・砂目スプレー)
  */
 
 function createBufferCanvas(width, height) {
@@ -20,7 +36,6 @@ function createBufferCanvas(width, height) {
   if (typeof OffscreenCanvas !== 'undefined') {
     return new OffscreenCanvas(w, h);
   }
-  // Node.js headless fallback for unit tests
   return {
     width: w,
     height: h,
@@ -37,9 +52,14 @@ function createBufferCanvas(width, height) {
         putImageData: () => {},
         drawImage: () => {},
         fillRect: () => {},
+        strokeRect: () => {},
         beginPath: () => {},
+        moveTo: () => {},
+        lineTo: () => {},
         arc: () => {},
+        ellipse: () => {},
         fill: () => {},
+        stroke: () => {},
         save: () => {},
         restore: () => {}
       };
@@ -90,9 +110,6 @@ export class RasterStore {
     }
   }
 
-  /**
-   * Captures a rectangular region of pixels for Undo/Redo delta
-   */
   captureRegion(assetId, x, y, width, height) {
     const buf = this.buffers.get(assetId);
     if (!buf) return null;
@@ -111,9 +128,6 @@ export class RasterStore {
     };
   }
 
-  /**
-   * Restores a rectangular region of pixels from an Undo/Redo delta
-   */
   restoreRegion(assetId, patch) {
     if (!patch || !patch.imageData) return;
     const buf = this.buffers.get(assetId);
@@ -146,7 +160,7 @@ export class RasterStore {
 }
 
 /**
- * Standard Raster Brush Presets (Clip Studio / Krita style)
+ * Rich Raster Brush Presets
  */
 export const RASTER_BRUSH_PRESETS = {
   gpen: {
@@ -154,62 +168,67 @@ export const RASTER_BRUSH_PRESETS = {
     nameJa: 'Gペン (強弱インク)',
     nameEn: 'G-Pen Ink',
     size: 14,
-    hardness: 0.92,
+    hardness: 0.94,
     opacity: 1.0,
     flow: 1.0,
-    spacing: 0.1,
+    spacing: 0.08,
     pressureSize: true,
     pressureOpacity: false,
+    tiltAspect: false,
     stabilizer: 6
   },
   marupen: {
     id: 'marupen',
     nameJa: '丸ペン (極細線画)',
     nameEn: 'Mapping Pen',
-    size: 6,
-    hardness: 0.95,
+    size: 5,
+    hardness: 0.98,
     opacity: 1.0,
     flow: 1.0,
-    spacing: 0.08,
+    spacing: 0.06,
     pressureSize: true,
     pressureOpacity: false,
+    tiltAspect: false,
     stabilizer: 8
   },
   pencil: {
     id: 'pencil',
-    nameJa: 'デッサン鉛筆',
+    nameJa: 'デッサン鉛筆 (傾き対応)',
     nameEn: 'Sketch Pencil',
-    size: 10,
-    hardness: 0.7,
+    size: 11,
+    hardness: 0.68,
     opacity: 0.85,
-    flow: 0.7,
+    flow: 0.72,
     spacing: 0.14,
     pressureSize: true,
     pressureOpacity: true,
+    tiltAspect: true,
     stabilizer: 3
   },
   marker: {
     id: 'marker',
-    nameJa: 'コピックマーカー',
-    nameEn: 'Felt Marker',
+    nameJa: 'コピックマーカー / 平筆',
+    nameEn: 'Chisel Marker',
     size: 28,
-    hardness: 0.8,
-    opacity: 0.65,
-    flow: 0.8,
-    spacing: 0.1,
+    hardness: 0.82,
+    opacity: 0.62,
+    flow: 0.78,
+    spacing: 0.09,
     pressureSize: false,
     pressureOpacity: true,
+    tiltAspect: true,
+    chisel: true,
     stabilizer: 4
   },
   airbrush: {
     id: 'airbrush',
     nameJa: 'ソフトエアブラシ',
     nameEn: 'Soft Airbrush',
-    size: 64,
-    hardness: 0.1,
-    opacity: 0.45,
+    size: 68,
+    hardness: 0.08,
+    opacity: 0.42,
     flow: 0.35,
-    spacing: 0.15,
+    spacing: 0.14,
     pressureSize: false,
     pressureOpacity: true,
     stabilizer: 2
@@ -219,35 +238,92 @@ export const RASTER_BRUSH_PRESETS = {
     nameJa: '透明水彩ブラシ',
     nameEn: 'Watercolor',
     size: 38,
-    hardness: 0.35,
-    opacity: 0.55,
-    flow: 0.5,
-    spacing: 0.12,
+    hardness: 0.32,
+    opacity: 0.52,
+    flow: 0.48,
+    spacing: 0.11,
     pressureSize: true,
     pressureOpacity: true,
     stabilizer: 4
+  },
+  oil: {
+    id: 'oil',
+    nameJa: '厚塗り油彩ブラシ',
+    nameEn: 'Thick Oil Paint',
+    size: 32,
+    hardness: 0.86,
+    opacity: 0.94,
+    flow: 0.92,
+    spacing: 0.07,
+    pressureSize: true,
+    pressureOpacity: true,
+    tiltAspect: true,
+    stabilizer: 5
   }
 };
 
 /**
  * Stamps a single brush dab onto a 2D canvas context
+ * Supports pen pressure, pen tilt angle/elevation, chisel tip,dodge/burn, spatter noise, and pattern stamps.
  */
-export function stampBrushDab(ctx, x, y, settings, pressure = 0.7, isEraser = false) {
+export function stampBrushDab(ctx, x, y, settings, pressure = 0.7, isEraser = false, tilt = { tiltX: 0, tiltY: 0 }) {
   const baseSize = Math.max(1, Number(settings.size) || 12);
   const p = Math.max(0.05, Math.min(1, Number(pressure) || 0.7));
-  const radius = Math.max(0.5, (baseSize * (settings.pressureSize !== false ? (0.25 + 0.75 * p) : 1)) / 2);
+  const radius = Math.max(0.5, (baseSize * (settings.pressureSize !== false ? (0.22 + 0.78 * p) : 1)) / 2);
   const hardness = Math.max(0.05, Math.min(1, Number(settings.hardness) ?? 0.85));
   const alpha = Math.max(0.02, Math.min(1, (Number(settings.opacity) ?? 1) * (Number(settings.flow) ?? 1) * (settings.pressureOpacity ? p : 1)));
 
   ctx.save();
   if (isEraser) {
     ctx.globalCompositeOperation = 'destination-out';
+  } else if (settings.compositeOp) {
+    ctx.globalCompositeOperation = settings.compositeOp;
   } else {
     ctx.globalCompositeOperation = 'source-over';
   }
 
   const color = settings.color || '#000000';
   const rgb = hexToRgb(color);
+
+  // Special Mode 1: Spatter / Noise Spray
+  if (settings.brushMode === 'spatter') {
+    const count = Math.max(4, Math.round(radius * 0.9));
+    ctx.fillStyle = `rgba(${rgb.r},${rgb.g},${rgb.b},${alpha})`;
+    for (let i = 0; i < count; i++) {
+      const ang = Math.random() * Math.PI * 2;
+      const dist = Math.sqrt(Math.random()) * radius * 1.4;
+      const dotR = Math.max(0.7, Math.random() * (radius * 0.18));
+      ctx.beginPath();
+      ctx.arc(x + Math.cos(ang) * dist, y + Math.sin(ang) * dist, dotR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+    return radius * 1.5;
+  }
+
+  // Special Mode 2: Deco Stamp (Star / Heart / Sparkle / Circle)
+  if (settings.brushMode === 'stamp') {
+    ctx.fillStyle = `rgba(${rgb.r},${rgb.g},${rgb.b},${alpha})`;
+    drawDecoStampShape(ctx, x, y, radius * 1.3, settings.stampShape || 'star');
+    ctx.restore();
+    return radius * 1.4;
+  }
+
+  // Pen Tilt & Chisel Marker support
+  const tiltMag = Math.hypot(tilt?.tiltX || 0, tilt?.tiltY || 0) / 90; // 0 ~ 1
+  const tiltAngle = (tilt?.tiltX || tilt?.tiltY) ? Math.atan2(tilt.tiltY || 0, tilt.tiltX || 0) : -0.45;
+  const useEllipticalTip = settings.chisel || (settings.tiltAspect && tiltMag > 0.15);
+
+  if (useEllipticalTip && typeof ctx.ellipse === 'function') {
+    const rx = radius * (1 + tiltMag * 0.65);
+    const ry = Math.max(1, radius * (settings.chisel ? 0.38 : (1 - tiltMag * 0.45)));
+    ctx.fillStyle = isEraser ? `rgba(0,0,0,${alpha})` : `rgba(${rgb.r},${rgb.g},${rgb.b},${alpha})`;
+    ctx.beginPath();
+    ctx.ellipse(x, y, rx, ry, tiltAngle, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+    return rx;
+  }
 
   if (hardness >= 0.92) {
     ctx.fillStyle = isEraser ? `rgba(0,0,0,${alpha})` : `rgba(${rgb.r},${rgb.g},${rgb.b},${alpha})`;
@@ -269,16 +345,66 @@ export function stampBrushDab(ctx, x, y, settings, pressure = 0.7, isEraser = fa
   return radius;
 }
 
+function drawDecoStampShape(ctx, cx, cy, r, shape = 'star') {
+  ctx.beginPath();
+  if (shape === 'heart') {
+    ctx.moveTo(cx, cy + r * 0.7);
+    ctx.bezierCurveTo(cx - r * 1.2, cy - r * 0.2, cx - r * 0.6, cy - r * 1.1, cx, cy - r * 0.4);
+    ctx.bezierCurveTo(cx + r * 0.6, cy - r * 1.1, cx + r * 1.2, cy - r * 0.2, cx, cy + r * 0.7);
+  } else if (shape === 'sparkle') {
+    for (let i = 0; i < 8; i++) {
+      const rad = i % 2 === 0 ? r : r * 0.25;
+      const ang = (i / 8) * Math.PI * 2;
+      const px = cx + Math.cos(ang) * rad;
+      const py = cy + Math.sin(ang) * rad;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+  } else {
+    // 5-pointed star
+    for (let i = 0; i < 10; i++) {
+      const rad = i % 2 === 0 ? r : r * 0.45;
+      const ang = (i / 10) * Math.PI * 2 - Math.PI / 2;
+      const px = cx + Math.cos(ang) * rad;
+      const py = cy + Math.sin(ang) * rad;
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+  }
+  ctx.closePath();
+  ctx.fill();
+}
+
 /**
  * Interpolates brush dabs along a segment from p0 to p1
+ * Supports Symmetry Mirroring (Horizontal / Vertical / 4-Way Quad Symmetry)
  */
 export function strokeBrushSegment(ctx, p0, p1, settings, isEraser = false) {
   const dist = Math.hypot(p1.x - p0.x, p1.y - p0.y);
   const baseSize = Math.max(1, Number(settings.size) || 12);
-  const step = Math.max(1, baseSize * (Number(settings.spacing) || 0.12));
+  const stepRatio = settings.brushMode === 'stamp' ? 1.15 : settings.brushMode === 'spatter' ? 0.35 : (Number(settings.spacing) || 0.1);
+  const step = Math.max(1, baseSize * stepRatio);
+
+  const stampWithSymmetry = (x, y, pr, tilt) => {
+    const r = stampBrushDab(ctx, x, y, settings, pr, isEraser, tilt);
+    if (settings.symmetryMode && settings.canvasWidth && settings.canvasHeight) {
+      const cw = settings.canvasWidth;
+      const ch = settings.canvasHeight;
+      const mx = cw - x;
+      const my = ch - y;
+      stampBrushDab(ctx, mx, y, settings, pr, isEraser, { tiltX: -(tilt.tiltX || 0), tiltY: tilt.tiltY || 0 });
+      if (settings.symmetryMode === 'quad') {
+        stampBrushDab(ctx, x, my, settings, pr, isEraser, tilt);
+        stampBrushDab(ctx, mx, my, settings, pr, isEraser, tilt);
+      }
+    }
+    return r;
+  };
+
+  const tilt = { tiltX: p1.tiltX || 0, tiltY: p1.tiltY || 0 };
 
   if (dist < step) {
-    const r = stampBrushDab(ctx, p1.x, p1.y, settings, p1.pressure ?? 0.7, isEraser);
+    const r = stampWithSymmetry(p1.x, p1.y, p1.pressure ?? 0.7, tilt);
     return {
       minX: p1.x - r - 2,
       minY: p1.y - r - 2,
@@ -294,7 +420,7 @@ export function strokeBrushSegment(ctx, p0, p1, settings, isEraser = false) {
     const x = p0.x + (p1.x - p0.x) * t;
     const y = p0.y + (p1.y - p0.y) * t;
     const pr = (p0.pressure ?? 0.7) + ((p1.pressure ?? 0.7) - (p0.pressure ?? 0.7)) * t;
-    const r = stampBrushDab(ctx, x, y, settings, pr, isEraser);
+    const r = stampWithSymmetry(x, y, pr, tilt);
     minX = Math.min(minX, x - r - 2);
     minY = Math.min(minY, y - r - 2);
     maxX = Math.max(maxX, x + r + 2);
@@ -345,7 +471,6 @@ export function floodFillCanvas(canvas, startX, startY, fillColorHex, tolerance 
   };
 
   if (!contiguous) {
-    // Global color match fill
     for (let i = 0; i < data.length; i += 4) {
       if (matchesTarget(i)) {
         data[i] = fillRgb.r;
@@ -358,7 +483,6 @@ export function floodFillCanvas(canvas, startX, startY, fillColorHex, tolerance 
     return { x: 0, y: 0, width: w, height: h };
   }
 
-  // Contiguous BFS / Scanline Flood Fill
   const visited = new Uint8Array(w * h);
   const stack = [sx, sy];
   visited[sy * w + sx] = 1;
@@ -419,7 +543,6 @@ export function applyLocalBlurOrSmudge(ctx, x, y, prevX, prevY, radius = 20, mod
     return;
   }
 
-  // Fast box blur inside circular clip
   ctx.save();
   ctx.globalAlpha = 0.5;
   ctx.beginPath();

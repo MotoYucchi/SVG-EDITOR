@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SVG EDITOR Studio — 使い方 & TIPS 完全ガイド | Powered by MotoYucchi</title>
+  <style>
+    :root[data-theme="dark"] {
+      --bg: #141417;
+      --bg-card: #222228;
+      --bg-code: #17171c;
+      --text: #f4f4f6;
+      --text-muted: #9ca3af;
+      --border: #363642;
+      --accent: #3b82f6;
+      --accent-hover: #60a5fa;
+      --vec: #10b981;
+      --ras: #f59e0b;
+    }
+    :root[data-theme="light"] {
+      --bg: #f8fafc;
+      --bg-card: #ffffff;
+      --bg-code: #f1f5f9;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --border: #cbd5e1;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --vec: #059669;
+      --ras: #d97706;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+    img, svg {
+      user-select: none !important;
+      -webkit-user-drag: none !important;
+      pointer-events: none;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Noto Sans JP", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+      padding: 28px 18px 60px;
+    }
+    .container {
+      max-width: 1040px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+    }
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .btn {
+      background: var(--bg-card);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 8px 16px;
+      border-radius: 6px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .hero-banner {
+      background: linear-gradient(135deg, rgba(59,130,246,0.16), rgba(16,185,129,0.12));
+      border: 1px solid var(--accent);
+      border-radius: 12px;
+      padding: 22px;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+      gap: 18px;
+    }
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .card h3 {
+      font-size: 1.08rem;
+      color: var(--accent-hover);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .pill {
+      font-size: 0.72rem;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-weight: 700;
+    }
+    .pill.v { background: rgba(16,185,129,0.18); color: var(--vec); }
+    .pill.r { background: rgba(245,158,11,0.18); color: var(--ras); }
+    kbd {
+      background: var(--bg-code);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-family: monospace;
+      font-size: 0.82rem;
+    }
+    ul {
+      padding-left: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 0.92rem;
+    }
+  </style>
+</head>
+<body oncontextmenu="if(event.target.tagName==='IMG'||event.target.tagName==='SVG')return false;">
+  <div class="container">
+    <header>
+      <div>
+        <h1>SVG EDITOR Studio — 使い方 & 操作TIPSガイド</h1>
+        <p style="color:var(--text-muted); font-size:0.9rem;">
+          ベクターの非破壊編集とペイントソフトの直感的な描き味を使いこなすための実践マニュアル
+        </p>
+      </div>
+      <div style="display:flex; gap:10px;">
+        <button class="btn" id="btn-theme">テーマ切替 (Dark / Light)</button>
+        <a href="./index.html" class="btn primary">← エディタ本体へ戻る</a>
+      </div>
+    </header>
+
+    <section class="hero-banner">
+      <h2 style="margin-bottom:8px;">SVG EDITOR POWERED BY MOTOYUCCHI とは？</h2>
+      <p style="font-size:0.95rem;">
+        SVG EDITOR POWERED BY MOTOYUCCHI は、ブラウザ上で動作する軽量なベクター＆ラスター画像編集ツールです。フレームワークを一切使用せず、ピュアな HTML、CSS、JavaScript (Native ES Modules) で構築されています。
+      </p>
+    </section>
+
+    <div class="grid-2">
+      <article class="card">
+        <h3>1. レイヤーモード連動とツールバー自動展開</h3>
+        <p style="font-size:0.9rem; color:var(--text-muted);">
+          レイヤーパネルで選択中のレイヤー種類に応じて、左ツールバーのセクションが自動的に展開・縮小されます。
+        </p>
+        <ul>
+          <li><span class="pill v">Vector</span> <strong>ベクターレイヤー選択時</strong>: ベクターツール群（図形10種・ベジェペン・フリーハンド・筆圧ベクターブラシ・テキスト・ノード編集）が自動展開されます。</li>
+          <li><span class="pill r">Raster</span> <strong>ラスターレイヤー選択時</strong>: 18種類のラスターペイントツール群（Gペン・丸ペン・鉛筆・マーカー・エアブラシ・透明水彩・厚塗り油彩・バケツ・ぼかし・指先・覆い焼き・対称定規ブラシ・スパッタリング等）が自動展開されます。</li>
+          <li>ヘッダー（<code>COMMON</code> / <code>VECTOR</code> / <code>RASTER</code>）をクリックすると手動でも折りたたみ・展開できます。</li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <h3>2. ツールボタン長押しによる「右ドック詳細設定タブ」</h3>
+        <p style="font-size:0.9rem; color:var(--text-muted);">
+          各ツールのさらに細かなパラメータを右ドックパネルにピン留めして調整できます。
+        </p>
+        <ul>
+          <li>左ツールバーの任意のツールボタンを<strong>指定時間（初期設定 5秒、Preferenceで 0.5秒〜10秒に変更可能）長押し</strong>すると、右ドックパネル最上部にそのツール専用の<strong>詳細設定タブ</strong>が開きます。</li>
+          <li>ツール詳細設定タブは右上の <code>×</code> ボタンでいつでも閉じることができます（既存のナビゲーター・カラー・レイヤー等の標準ドックは折りたたみ/展開のみ）。</li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <h3>3. 矩形マーキー範囲選択 & ダイレクト変形</h3>
+        <p style="font-size:0.9rem; color:var(--text-muted);">
+          複数のオブジェクトをまとめて素早く選択・変形できます。
+        </p>
+        <ul>
+          <li><strong>選択ツール (<kbd>V</kbd>)</strong> でキャンバスの何もない場所からドラッグ（または長クリック移動）すると、<strong>青い点線の四角形（マーキー範囲選択ボックス）</strong>が描かれ、範囲内の選択中レイヤーにあるすべてのオブジェクトを一括選択できます。</li>
+          <li><kbd>Shift</kbd> を押しながらドラッグまたはクリックすると、現在の選択に追加・解除できます。</li>
+          <li><kbd>Delete</kbd> または <kbd>Backspace</kbd> キーで選択中のオブジェクトを即座に削除できます（間違えても <kbd>Ctrl+Z</kbd> で即復元）。</li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <h3>4. ナビゲーター直感移動 & 吸着（スナップ）スライダー</h3>
+        <p style="font-size:0.9rem; color:var(--text-muted);">
+          キャンバスの見たい場所へ一瞬でジャンプし、気持ちよく角度や倍率を合わせられます。
+        </p>
+        <ul>
+          <li><strong>ナビゲーターの赤枠ドラッグ</strong>: 右パネル最上部のナビゲーター（ミニマップ）内をクリック・タップ・ドラッグすると、赤い表示枠がその位置へ直感的に追従してキャンバスが移動します。</li>
+          <li><strong>マグネット吸着スライダー</strong>: 回転（Rotate）スライダーは <strong>15° 単位</strong>（-180°〜0°〜+180°）、ズーム（Zoom）スライダーは <strong>5% / 10% 単位および主要倍率（50%, 100%, 200%, 400%）</strong> に心地よく吸い付きます。スライダーをダブルクリックすると初期値（0° / 100%）にリセットされます。</li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <h3>5. レイヤーのミニプレビュー & 長押し拡大プレビュー</h3>
+        <p style="font-size:0.9rem; color:var(--text-muted);">
+          どのレイヤーに何が描かれているか一目で判別できます。
+        </p>
+        <ul>
+          <li>各レイヤー行の左側にリアルタイムの<strong>ミニサムネイルプレビュー</strong>が表示されます。</li>
+          <li>このミニプレビューを<strong>長押し（または長クリック）</strong>すると、画面中央にそのレイヤー単独の<strong>大画面拡大プレビュー</strong>が表示されます。画面のどこかをタップまたはクリックするとすぐに閉じます。</li>
+        </ul>
+      </article>
+
+      <article class="card">
+        <h3>6. 環境設定（Preference ⚙️）・キーバインド・液タブ筆圧/傾き</h3>
+        <p style="font-size:0.9rem; color:var(--text-muted);">
+          自分の制作スタイルに合わせてショートカットやペン感度を自在にカスタマイズできます。
+        </p>
+        <ul>
+          <li>上部バーの歯車アイコン（またはメニューの <code>編集 &gt; 環境設定</code>）から、<strong>言語切替（日本語/英語）・テーマ（ダーク/ライト）・UIスケール・左利き配置・ツール長押し秒数</strong>を変更できます。</li>
+          <li><strong>キーバインド編集</strong>: <kbd>Ctrl</kbd> (<kbd>Cmd</kbd>) / <kbd>Shift</kbd> / <kbd>Alt</kbd> の組み合わせを含め、任意の機能やツールのショートカットを新規割り当て・削除・初期値リセットできます。</li>
+          <li><strong>液タブ・板タブ調整</strong>: 筆圧検知・ペンの傾き（Tilt）検知のON/OFF、筆圧カーブ（ガンマ値）、最小反応筆圧（デッドゾーン）、手ブレ補正をテストパッドで確認しながら微調整できます。</li>
+        </ul>
+      </article>
+    </div>
+  </div>
+
+  <script>
+    document.getElementById('btn-theme').onclick = () => {
+      const root = document.documentElement;
+      root.setAttribute('data-theme', root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+    };
+  </script>
+</body>
+</html>

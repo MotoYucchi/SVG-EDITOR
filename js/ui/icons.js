@@ -87,8 +87,8 @@ export const ICON_CATALOG = {
   'settings': {
     origin: 'new',
     category: 'UI & Layout',
-    labelJa: '設定',
-    labelEn: 'Settings',
+    labelJa: '設定 (Preference)',
+    labelEn: 'Preferences',
     note: 'Replaced broken legacy setting.svg (invalid translate(50%,50%) attribute)',
     body: `<circle cx="12" cy="12" r="3.2" stroke="currentColor" stroke-width="1.75" fill="none"/>
            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.85 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`
@@ -109,9 +109,9 @@ export const ICON_CATALOG = {
   'tool-select': {
     origin: 'new',
     category: 'Common Tools',
-    labelJa: '選択・移動ツール (V)',
-    labelEn: 'Select & Move Tool (V)',
-    note: 'Primary cursor arrow for selecting and transforming objects',
+    labelJa: '選択・範囲変形ツール (V)',
+    labelEn: 'Select & Marquee Transform (V)',
+    note: 'Primary cursor arrow for selecting, marquee drag-selecting, and transforming objects',
     body: `<path d="M5 3L19 12L12 13.5L9 20L5 3Z" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round" fill="none"/>`
   },
   'tool-node': {
@@ -300,22 +300,49 @@ export const ICON_CATALOG = {
   },
 
   // ==========================================
-  // 5. RASTER TOOLS (7 icons)
+  // 5. RASTER TOOLS (18 rich paint tools!)
   // ==========================================
   'raster-pen': {
     origin: 'new',
     category: 'Raster Tools',
-    labelJa: 'ラスターペン / Gペン / 鉛筆',
-    labelEn: 'Raster Pen / G-Pen / Pencil',
+    labelJa: 'Gペン (強弱インク)',
+    labelEn: 'G-Pen Ink',
     note: 'Comic G-pen & ink drawing nib',
     body: `<path d="M15.5 3.5L20.5 8.5L8 21H3V16L15.5 3.5Z" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round" fill="none"/>
            <path d="M13 6L18 11" stroke="currentColor" stroke-width="1.75"/>`
   },
+  'raster-marupen': {
+    origin: 'new',
+    category: 'Raster Tools',
+    labelJa: '丸ペン (極細線画)',
+    labelEn: 'Mapping / Fine Pen',
+    note: 'Fine mapping pen nib for delicate lineart',
+    body: `<path d="M18 3L21 6L9 18L4 20L6 15L18 3Z" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round" fill="none"/>
+           <line x1="4" y1="20" x2="7.5" y2="16.5" stroke="currentColor" stroke-width="1.5"/>`
+  },
+  'raster-pencil': {
+    origin: 'new',
+    category: 'Raster Tools',
+    labelJa: 'デッサン鉛筆',
+    labelEn: 'Sketch Pencil',
+    note: 'Textured graphite sketch pencil',
+    body: `<path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round" fill="none"/>
+           <line x1="14" y1="6" x2="18" y2="10" stroke="currentColor" stroke-width="1.5"/>`
+  },
+  'raster-marker': {
+    origin: 'new',
+    category: 'Raster Tools',
+    labelJa: 'コピックマーカー / 平筆',
+    labelEn: 'Chisel Marker',
+    note: 'Broad chisel felt marker',
+    body: `<path d="M14 4L20 10L10 20H4V14L14 4Z" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round" fill="none"/>
+           <line x1="11" y1="7" x2="17" y2="13" stroke="currentColor" stroke-width="2"/>`
+  },
   'raster-airbrush': {
     origin: 'new',
     category: 'Raster Tools',
-    labelJa: 'エアブラシ / 水彩 / マーカー',
-    labelEn: 'Airbrush / Watercolor / Marker',
+    labelJa: 'ソフトエアブラシ',
+    labelEn: 'Soft Airbrush',
     note: 'Spray nozzle with soft mist dots',
     body: `<path d="M10 10L19 4L20 5L14 14L10 10Z" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round" fill="none"/>
            <circle cx="5" cy="14" r="1" fill="currentColor"/>
@@ -323,11 +350,29 @@ export const ICON_CATALOG = {
            <circle cx="4" cy="18" r="1" fill="currentColor"/>
            <circle cx="9" cy="19.5" r="0.9" fill="currentColor"/>`
   },
+  'raster-watercolor': {
+    origin: 'new',
+    category: 'Raster Tools',
+    labelJa: '透明水彩ブラシ',
+    labelEn: 'Watercolor Brush',
+    note: 'Soft wet watercolor brush tip',
+    body: `<path d="M18 3c1.5 1.5 1.5 4 0 5.5L11 15.5c-2 .5-4.5 2-6 4.5-1-3 .5-6 2.5-7.5L14.5 5.5C16 4 17 2.5 18 3z" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round" fill="none"/>`
+  },
+  'raster-oil': {
+    origin: 'new',
+    category: 'Raster Tools',
+    labelJa: '厚塗り油彩ブラシ',
+    labelEn: 'Thick Oil Paint',
+    note: 'Heavy bristle oil paint brush',
+    body: `<path d="M7 3h10v6c0 2-1.5 3.5-3.5 3.5h-3C8.5 12.5 7 11 7 9V3z" stroke="currentColor" stroke-width="1.75" fill="none"/>
+           <line x1="7" y1="7" x2="17" y2="7" stroke="currentColor" stroke-width="1.75"/>
+           <path d="M10.5 12.5v6a1.5 1.5 0 0 0 3 0v-6" stroke="currentColor" stroke-width="1.75"/>`
+  },
   'raster-eraser': {
     origin: 'new',
     category: 'Raster Tools',
     labelJa: 'ラスター消しゴム (E)',
-    labelEn: 'Raster Eraser (E)',
+    labelEn: 'Hard/Soft Eraser (E)',
     note: 'Block eraser icon',
     body: `<path d="M18 19H8L3.5 14.5a2.1 2.1 0 0 1 0-3l8-8a2.1 2.1 0 0 1 3 0l6 6a2.1 2.1 0 0 1 0 3L13 20" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
            <path d="M7.5 10.5L13.5 16.5" stroke="currentColor" stroke-width="1.75"/>`
@@ -356,19 +401,77 @@ export const ICON_CATALOG = {
   'raster-blur': {
     origin: 'new',
     category: 'Raster Tools',
-    labelJa: 'ぼかし / 指先ツール',
-    labelEn: 'Blur / Smudge Tool',
-    note: 'Water droplet for soft blur & smudge',
+    labelJa: 'ぼかしブラシ',
+    labelEn: 'Blur Brush',
+    note: 'Water droplet for soft blur',
     body: `<path d="M12 3C12 3 5.5 10.2 5.5 14.8a6.5 6.5 0 0 0 13 0C18.5 10.2 12 3 12 3Z" stroke="currentColor" stroke-width="1.75" stroke-linejoin="round" fill="none"/>
            <path d="M9.5 15.5a3 3 0 0 0 3 2.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"/>`
+  },
+  'raster-smudge': {
+    origin: 'new',
+    category: 'Raster Tools',
+    labelJa: '指先 / 色混ぜツール',
+    labelEn: 'Smudge / Color Mixer',
+    note: 'Finger smudge wave icon',
+    body: `<path d="M4 15c3-4 6 3 9-1s4-6 7-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+           <path d="M4 19c3-4 6 3 9-1s4-4 7-2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" opacity="0.6" fill="none"/>`
+  },
+  'raster-dodge': {
+    origin: 'new',
+    category: 'Raster Tools',
+    labelJa: '覆い焼き / 焼き込みツール',
+    labelEn: 'Dodge / Burn (Highlight & Shadow)',
+    note: 'Sun / contrast wand for highlight and shadow',
+    body: `<circle cx="10" cy="10" r="5" stroke="currentColor" stroke-width="1.75" fill="none"/>
+           <line x1="13.8" y1="13.8" x2="20" y2="20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>`
   },
   'raster-stamp': {
     origin: 'new',
     category: 'Raster Tools',
-    labelJa: 'スタンプツール (S)',
-    labelEn: 'Clone / Pattern Stamp (S)',
+    labelJa: 'スタンプ / デコレーション (S)',
+    labelEn: 'Pattern / Deco Stamp (S)',
     note: 'Rubber stamp icon',
     body: `<path d="M5 19H19M4 16H20V14C20 12.9 19.1 12 18 12H6C4.9 12 4 12.9 4 14V16ZM10 12V8.5C10 7.5 8.5 6.8 8.5 5C8.5 3.3 10 2 12 2C14 2 15.5 3.3 15.5 5C15.5 6.8 14 7.5 14 8.5V12" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`
+  },
+  'raster-rect-select': {
+    origin: 'new',
+    category: 'Raster Tools',
+    labelJa: 'ラスター矩形選択・範囲消去/塗り',
+    labelEn: 'Raster Marquee Select',
+    note: 'Dashed marquee rectangle for pixel region ops',
+    body: `<rect x="4" y="5" width="16" height="14" rx="1" stroke="currentColor" stroke-width="1.75" stroke-dasharray="3 2.5" fill="none"/>`
+  },
+  'raster-line': {
+    origin: 'new',
+    category: 'Raster Tools',
+    labelJa: 'ラスター直線 / 図形描画',
+    labelEn: 'Raster Line & Shape',
+    note: 'Pixel line & rectangle drawing tool',
+    body: `<line x1="4" y1="20" x2="20" y2="4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+           <rect x="13" y="13" width="7" height="7" stroke="currentColor" stroke-width="1.5" fill="none"/>`
+  },
+  'raster-symmetry': {
+    origin: 'new',
+    category: 'Raster Tools',
+    labelJa: '対称定規ブラシ (左右/万華鏡)',
+    labelEn: 'Symmetry Mirror Brush',
+    note: 'Symmetrical mirror drawing brush',
+    body: `<line x1="12" y1="2" x2="12" y2="22" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2.5 2"/>
+           <path d="M9 7C5 9 4 15 9 18" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" fill="none"/>
+           <path d="M15 7C19 9 20 15 15 18" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" fill="none"/>`
+  },
+  'raster-noise': {
+    origin: 'new',
+    category: 'Raster Tools',
+    labelJa: 'スパッタリング / 砂目スプレー',
+    labelEn: 'Spatter / Noise Spray',
+    note: 'Random particle spatter brush',
+    body: `<circle cx="7" cy="8" r="1.5" fill="currentColor"/>
+           <circle cx="15" cy="6" r="1.2" fill="currentColor"/>
+           <circle cx="12" cy="12" r="1.8" fill="currentColor"/>
+           <circle cx="17" cy="15" r="1.4" fill="currentColor"/>
+           <circle cx="8" cy="17" r="1.3" fill="currentColor"/>
+           <circle cx="13" cy="19" r="1" fill="currentColor"/>`
   },
 
   // ==========================================
@@ -493,7 +596,7 @@ export const ICON_CATALOG = {
   },
 
   // ==========================================
-  // 7. LAYERS, FILE & HISTORY ACTIONS (16 icons)
+  // 7. LAYERS, FILE, PRINT & HISTORY ACTIONS (17 icons)
   // ==========================================
   'layer-vector': {
     origin: 'new',
@@ -584,6 +687,15 @@ export const ICON_CATALOG = {
            <rect x="15" y="15" width="2" height="2" fill="currentColor"/>
            <rect x="17" y="17" width="2" height="2" fill="currentColor"/>`
   },
+  'print': {
+    origin: 'new',
+    category: 'History & File',
+    labelJa: '印刷 (Ctrl+P)',
+    labelEn: 'Print (Ctrl+P)',
+    note: 'Printer icon for direct SVG canvas printing',
+    body: `<path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+           <rect x="6" y="14" width="12" height="7" rx="1" stroke="currentColor" stroke-width="1.75" fill="none"/>`
+  },
   'undo': {
     origin: 'new',
     category: 'History & File',
@@ -670,15 +782,12 @@ export const ICON_CATALOG = {
 
 /**
  * Returns an inline <svg> markup string for the requested icon ID.
- * @param {string} name - Icon key in ICON_CATALOG
- * @param {number} [size=20] - Pixel width/height
- * @param {string} [className=''] - Extra CSS class
- * @returns {string}
+ * Protected against dragging, selection, or image context menu copying.
  */
 export function renderIcon(name, size = 20, className = '') {
   const entry = ICON_CATALOG[name];
   if (!entry) {
-    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" class="svg-icon ${className}" aria-hidden="true"><circle cx="12" cy="12" r="4" stroke="currentColor" fill="none"/></svg>`;
+    return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" class="svg-icon ${className}" draggable="false" aria-hidden="true"><circle cx="12" cy="12" r="4" stroke="currentColor" fill="none"/></svg>`;
   }
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" class="svg-icon ${className}" aria-hidden="true">${entry.body}</svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24" class="svg-icon ${className}" draggable="false" aria-hidden="true">${entry.body}</svg>`;
 }

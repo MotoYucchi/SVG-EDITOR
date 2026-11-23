@@ -1,11 +1,12 @@
 /**
- * Modal Dialog Controllers:
- * 1. New Document Template Dialog (Presets, DPI, Units, Orientation, Color Model/Profile, Memory Preview)
- * 2. Canvas Resize / Resolution Dialog (Scale / Expand Margin / Crop)
- * 3. Vector -> Raster Conversion Dialog (DPI Multiplier 1x/2x/4x, Copy vs Replace)
- * 4. Custom Export Dialog (SVG/PNG/JPG/WebP/AVIF, Web Worker Optimization, Live Preview, Size Estimation)
- * 5. Shortcuts & Interactive Guide Dialog (? key)
- * 6. Preferences Dialog (Pen Pressure Curve, Stabilizer, Left-handed mode, UI Scale)
+ * Modal Dialog Controllers v2.1:
+ * 1. New Document Template Dialog
+ * 2. Canvas Resize / Resolution Dialog
+ * 3. Custom Export Dialog (SVG/PNG/JPG/WebP/AVIF + Web Worker)
+ * 4. Shortcuts & Interactive Guide Dialog (? key)
+ * 5. Comprehensive Preferences Dialog (Language, Theme, UI Scale, Handedness, Long-Press Duration,
+ *    Keybinding Customizer with Ctrl/Cmd/Shift/Alt assign/delete/reset, Pen Pressure & Tilt Live Calibration Pad, Cookie Consent)
+ * 6. About SVG EDITOR Modal (Author: MotoYucchi, Pure HTML/CSS/JS statement, GitHub Repository, TIPS link)
  */
 
 import {
@@ -18,6 +19,13 @@ import {
   serializeDocumentToSVG,
   renderLayerTreeToContext
 } from '../core/renderer.js';
+import {
+  hasStorageConsent,
+  setStorageConsent,
+  savePreferencesToStorage
+} from '../core/storage.js';
+import { getLang, setLang, t } from '../core/i18n.js';
+import { upgradeCustomSliders } from './custom-Controls.js';
 
 export function openModal({ title, bodyHtml, footerHtml, onMount }) {
   const backdrop = document.getElementById('modal-backdrop');
@@ -30,6 +38,9 @@ export function openModal({ title, bodyHtml, footerHtml, onMount }) {
   bodyEl.innerHTML = bodyHtml;
   footerEl.innerHTML = footerHtml || '';
   backdrop.classList.add('open');
+
+  // Upgrade any range sliders inside the modal into bespoke SVG magnetic snap sliders
+  upgradeCustomSliders(bodyEl);
 
   const close = () => backdrop.classList.remove('open');
   closeBtn.onclick = close;
@@ -48,9 +59,6 @@ export function openModal({ title, bodyHtml, footerHtml, onMount }) {
  */
 export function showNewDocumentModal(app) {
   let currentUnit = 'px';
-  let currentDpi = 96;
-  let currentW = 1920;
-  let currentH = 1080;
 
   const presetOptions = CANVAS_PRESETS.map(p =>
     `<option value="${p.id}">[${p.category}] ${p.name}</option>`
@@ -192,9 +200,6 @@ export function showNewDocumentModal(app) {
         const p = CANVAS_PRESETS.find(item => item.id === presetEl.value);
         if (!p) return;
         currentUnit = p.unit;
-        currentDpi = p.dpi;
-        currentW = p.width;
-        currentH = p.height;
         unitEl.value = p.unit;
         dpiEl.value = String(p.dpi);
         wEl.value = p.width;
@@ -304,7 +309,7 @@ export function showCanvasResizeModal(app) {
 }
 
 /**
- * 3. Custom Export Modal (SVG / PNG / JPG / WebP / AVIF + Web Worker Optimization & Preview)
+ * 3. Custom Export Modal
  */
 export function showCustomExportModal(app) {
   openModal({
@@ -340,7 +345,7 @@ export function showCustomExportModal(app) {
         </div>
         <div class="form-field">
           <label>画質 (JPG / WebP / AVIF)</label>
-          <input type="range" id="ex-quality" min="10" max="100" value="92">
+          <input type="range" id="ex-quality" data-snap="percent" min="10" max="100" value="92">
         </div>
         <div class="form-field">
           <label>SVG最適化 & ラスター扱い</label>
@@ -405,7 +410,6 @@ export function showCustomExportModal(app) {
           warnEl.style.display = 'none';
         }
 
-        // Render thumbnail preview
         const pctx = previewCanvas.getContext('2d');
         pctx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
         pctx.save();
@@ -418,7 +422,6 @@ export function showCustomExportModal(app) {
         renderLayerTreeToContext(pctx, app.doc.rootGroup, app.doc, app.rasterStore, app.imageCache);
         pctx.restore();
 
-        // Optimize in background Web Worker if available
         if (app.exportWorker && formatEl.value === 'svg') {
           workerStatusEl.textContent = 'Web WorkerでSVG最適化中...';
           app.exportWorker.onmessage = (ev) => {
@@ -480,102 +483,394 @@ export function showCustomExportModal(app) {
 }
 
 /**
- * 4. Shortcuts & First-Time Tutorial Modal (? key)
+ * 4. Shortcuts & Interactive Guide Modal (? key)
  */
-export function showShortcutsModal() {
+export function showShortcutsModal(app = null) {
+  const kb = app ? app.keybindings : {};
   openModal({
     title: 'ショートカット一覧 & クイックガイド (?)',
     bodyHtml: `
-      <div style="background:rgba(59,130,246,0.12); border:1px solid var(--accent); padding:10px 12px; border-radius:6px; font-size:0.84rem;">
-        <strong>💡 お絵かきソフト流の直感操作ガイド</strong><br>
-        ・<strong>ベクターレイヤー</strong>では図形・ベジェペン・筆圧ベクターブラシ・テキストを非破壊で描画・変形できます。<br>
-        ・<strong>ラスターレイヤー</strong>に切り替えると、Gペン・エアブラシ・水彩・バケツ塗り・ぼかしが使えます。<br>
-        ・<strong>スペースキーを押しながらドラッグ</strong>（または2本指タッチ）でキャンバスを自在にパン・回転できます。
+      <div style="background:rgba(59,130,246,0.12); border:1px solid var(--accent); padding:10px 12px; border-radius:6px; font-size:0.84rem; display:flex; justify-content:space-between; align-items:center; gap:10px;">
+        <div>
+          <strong>💡 操作TIPS & カスタムキーバインド</strong><br>
+          ・選択ツール (<code>${kb['tool:select'] || 'V'}</code>) で空白をドラッグすると<strong>矩形範囲（マーキー）選択</strong>ができます。<br>
+          ・左ツールバーのアイコンを長押しすると、右ドックに<strong>ツール専用の詳細設定タブ</strong>が開きます。
+        </div>
+        <a href="./tips.html" target="_blank" rel="noopener" style="text-decoration:none;">
+          <button type="button" class="primary" style="white-space:nowrap;">TIPSページを開く ↗</button>
+        </a>
       </div>
-      <div class="form-grid" style="font-size:0.83rem;">
+      <div class="form-grid" style="font-size:0.82rem;">
         <div>
           <h4 style="margin-bottom:6px; color:var(--accent-hover)">ツール切替</h4>
-          <div><code>V</code> : 選択・変形ツール</div>
-          <div><code>A</code> : ノード編集ツール</div>
-          <div><code>L</code> : 投げ縄選択</div>
-          <div><code>P</code> : ベジェペンツール</div>
-          <div><code>N</code> : フリーハンドパス</div>
-          <div><code>B</code> : 筆圧ベクターブラシ / ラスターペン</div>
-          <div><code>U</code> : 矩形・基本図形</div>
-          <div><code>O</code> : 楕円ツール</div>
-          <div><code>T</code> : テキスト (縦書き・IME対応)</div>
-          <div><code>E</code> : 消しゴム</div>
-          <div><code>G</code> : バケツ塗りつぶし</div>
-          <div><code>I</code> : スポイト</div>
-          <div><code>H</code> / <code>Space</code> : 手のひらパン</div>
+          <div><code>${kb['tool:select'] || 'V'}</code> : 選択・マーキー範囲変形</div>
+          <div><code>${kb['tool:node'] || 'A'}</code> : ノード編集ツール</div>
+          <div><code>${kb['tool:lasso'] || 'L'}</code> : 投げ縄選択</div>
+          <div><code>${kb['tool:pen'] || 'P'}</code> : ベジェペンツール</div>
+          <div><code>${kb['tool:freehand'] || 'N'}</code> : フリーハンドパス</div>
+          <div><code>${kb['tool:vector-brush'] || 'B'}</code> : 筆圧ベクターブラシ</div>
+          <div><code>${kb['tool:shape-rect'] || 'U'}</code> : 矩形・基本図形</div>
+          <div><code>${kb['tool:shape-ellipse'] || 'O'}</code> : 楕円ツール</div>
+          <div><code>${kb['tool:text'] || 'T'}</code> : テキスト (縦書き・IME対応)</div>
+          <div><code>${kb['tool:raster-eraser'] || 'E'}</code> : ラスター消しゴム</div>
+          <div><code>${kb['tool:raster-bucket'] || 'G'}</code> : バケツ塗りつぶし</div>
+          <div><code>${kb['tool:eyedropper'] || 'I'}</code> : スポイト</div>
+          <div><code>${kb['tool:pan'] || 'H'}</code> / <code>Space</code> : 手のひらパン</div>
         </div>
         <div>
           <h4 style="margin-bottom:6px; color:var(--accent-hover)">編集・表示・タッチ操作</h4>
-          <div><code>Ctrl/Cmd + Z</code> : 元に戻す (Undo)</div>
-          <div><code>Ctrl/Cmd + Y</code> : やり直す (Redo)</div>
-          <div><code>X</code> : メイン/サブカラー切替</div>
-          <div><code>Delete / Backspace</code> : 選択オブジェクト削除</div>
-          <div><code>Ctrl/Cmd + D</code> : 選択オブジェクト複製</div>
-          <div><code>Shift + ドラッグ</code> : 正方形/正円・比率固定</div>
-          <div><code>Alt + ドラッグ</code> : 中心から図形を作成</div>
-          <div><code>Esc / Enter</code> : パス描画の確定・キャンセル</div>
+          <div><code>${kb['action:undo'] || 'Ctrl+Z'}</code> : 元に戻す (Undo)</div>
+          <div><code>${kb['action:redo'] || 'Ctrl+Y'}</code> : やり直す (Redo)</div>
+          <div><code>${kb['action:delete'] || 'Delete'}</code> : 選択オブジェクトを削除</div>
+          <div><code>${kb['action:duplicate'] || 'Ctrl+D'}</code> : 選択オブジェクトを複製</div>
+          <div><code>${kb['action:swapColors'] || 'X'}</code> : メイン/サブカラー切替</div>
+          <div><code>${kb['action:print'] || 'Ctrl+P'}</code> : キャンバスを印刷 (Print)</div>
           <div><code>2本指ピンチ/回転</code> : ズーム & キャンバス回転</div>
           <div><code>2本指タップ / 3本指タップ</code> : Undo / Redo</div>
         </div>
       </div>
     `,
-    footerHtml: `<button type="button" id="sc-close" class="primary">閉じる</button>`,
+    footerHtml: `
+      ${app ? `<button type="button" id="sc-edit-kb">キーバインドをカスタマイズ (Preference)...</button>` : ''}
+      <button type="button" id="sc-close" class="primary">閉じる</button>
+    `,
     onMount(body, footer, close) {
+      const editBtn = footer.querySelector('#sc-edit-kb');
+      if (editBtn && app) {
+        editBtn.onclick = () => {
+          close();
+          showPreferencesModal(app, 'keybinds');
+        };
+      }
       footer.querySelector('#sc-close').onclick = close;
     }
   });
 }
 
 /**
- * 5. Preferences Modal (Pen Pressure Curve, UI Scale, Handedness)
+ * 5. Comprehensive Preferences Modal (⚙️)
+ * Tabs:
+ * - General (Language, Theme, UI Scale, Left/Right Handedness, Toolbar Long-Press Secs, Cookie Consent)
+ * - Keybindings (Full Keyboard Shortcut Editor with Ctrl/Cmd/Shift/Alt recording, delete, reset)
+ * - Pen Tablet (Pressure & Tilt Detection, Gamma Curve, Deadzone, Stabilizer + Live Pen Test Canvas)
  */
-export function showPreferencesModal(app) {
+export function showPreferencesModal(app, initialTab = 'general') {
+  const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+  const currentLang = getLang();
+
   openModal({
-    title: '環境設定 (ペンタブ筆圧・UIスケール・利き手配置)',
+    title: '環境設定 (Preferences — 言語・テーマ・キーバインド・液タブ筆圧/傾き)',
     bodyHtml: `
-      <div class="form-grid">
-        <div class="form-field">
-          <label>ペン筆圧カーブ (軟らかめ 0.5 〜 硬め 2.0)</label>
-          <input type="range" id="pref-pressure-gamma" min="0.5" max="2.0" step="0.1" value="${app.preferences.pressureGamma}">
+      <div style="display:flex; gap:6px; border-bottom:1px solid var(--border-color); padding-bottom:10px;">
+        <button type="button" class="pref-tab-btn active" data-pref-tab="general">基本・UI・ストレージ</button>
+        <button type="button" class="pref-tab-btn" data-pref-tab="keybinds">ショートカット / キーバインド</button>
+        <button type="button" class="pref-tab-btn" data-pref-tab="tablet">液タブ・板タブ筆圧 / 傾き設定</button>
+      </div>
+
+      <!-- Tab 1: General & UI -->
+      <div id="pref-pane-general" class="pref-pane">
+        <div class="form-grid">
+          <div class="form-field">
+            <label>表示言語 (Language)</label>
+            <select id="pref-lang">
+              <option value="ja" ${currentLang === 'ja' ? 'selected' : ''}>日本語 (Japanese)</option>
+              <option value="en" ${currentLang === 'en' ? 'selected' : ''}>English (英語)</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label>カラーテーマ (Theme)</label>
+            <select id="pref-theme">
+              <option value="dark" ${currentTheme === 'dark' ? 'selected' : ''}>ダークテーマ (Dark Studio)</option>
+              <option value="light" ${currentTheme === 'light' ? 'selected' : ''}>ライトテーマ (Light Studio)</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label>UIスケール</label>
+            <select id="pref-uiscale">
+              <option value="0.9" ${app.preferences.uiScale === 0.9 ? 'selected' : ''}>90% (コンパクト)</option>
+              <option value="1" ${app.preferences.uiScale === 1 ? 'selected' : ''}>100% (標準)</option>
+              <option value="1.15" ${app.preferences.uiScale === 1.15 ? 'selected' : ''}>115% (大きめ・タッチ向け)</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label>利き手レイアウト (片手操作配置)</label>
+            <select id="pref-handedness">
+              <option value="right" ${app.preferences.handedness === 'right' ? 'selected' : ''}>右利き標準 (左ツール / 右ドック)</option>
+              <option value="left" ${app.preferences.handedness === 'left' ? 'selected' : ''}>左利きモード (右ツール / 左ドック)</option>
+            </select>
+          </div>
+          <div class="form-field" style="grid-column: span 2;">
+            <label>左ツールバー長押しで右ドック詳細タブを開くまでの時間: <strong id="pref-lp-val">${app.preferences.longPressSeconds ?? 5}秒</strong> (既定: 5秒)</label>
+            <input type="range" id="pref-longpress-sec" data-snap="none" min="0.5" max="10" step="0.5" value="${app.preferences.longPressSeconds ?? 5}">
+          </div>
+          <div class="form-field" style="grid-column: span 2; background:var(--bg-input); border:1px solid var(--border-color); padding:10px; border-radius:6px;">
+            <label style="display:flex; align-items:center; justify-content:space-between; color:var(--text-main);">
+              <span><strong>Cookie・ローカルストレージへの設定＆ワークスペース自動保持</strong></span>
+              <input type="checkbox" id="pref-cookie-consent" ${hasStorageConsent() ? 'checked' : ''}>
+            </label>
+            <small style="color:var(--text-muted)">OFFにすると保存済みのCookie・localStorage・IndexedDBデータを即座に完全消去し、ブラウザへの保持を一切行いません。</small>
+          </div>
         </div>
-        <div class="form-field">
-          <label>手ブレ補正 (Stabilizer 0〜15)</label>
-          <input type="range" id="pref-stabilizer" min="0" max="15" step="1" value="${app.preferences.stabilizer}">
+      </div>
+
+      <!-- Tab 2: Keybindings Customizer -->
+      <div id="pref-pane-keybinds" class="pref-pane" style="display:none; flex-direction:column; gap:10px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; font-size:0.82rem;">
+          <span>割り当てボタンをクリックし、キーボードで新しいキー（<code>Ctrl/Cmd + Shift + Alt + キー</code> 対応）を押してください。</span>
+          <button type="button" id="btn-reset-all-kb" style="font-size:0.78rem;">すべて初期値にリセット</button>
         </div>
-        <div class="form-field">
-          <label>UIスケール</label>
-          <select id="pref-uiscale">
-            <option value="0.9" ${app.preferences.uiScale === 0.9 ? 'selected' : ''}>90% (コンパクト)</option>
-            <option value="1" ${app.preferences.uiScale === 1 ? 'selected' : ''}>100% (標準)</option>
-            <option value="1.15" ${app.preferences.uiScale === 1.15 ? 'selected' : ''}>115% (大きめ・タッチ向け)</option>
-          </select>
+        <div id="kb-list-container" style="max-height:310px; overflow-y:auto; border:1px solid var(--border-color); border-radius:6px; background:var(--bg-input);"></div>
+      </div>
+
+      <!-- Tab 3: Pen Tablet Pressure & Tilt Calibration -->
+      <div id="pref-pane-tablet" class="pref-pane" style="display:none; flex-direction:column; gap:12px;">
+        <div class="form-grid">
+          <div class="form-field">
+            <label style="display:flex; align-items:center; gap:6px; color:var(--text-main);">
+              <input type="checkbox" id="pref-pen-pressure" ${app.preferences.enablePressure !== false ? 'checked' : ''}> 液タブ・板タブの筆圧検知を有効化
+            </label>
+            <label style="display:flex; align-items:center; gap:6px; color:var(--text-main); margin-top:4px;">
+              <input type="checkbox" id="pref-pen-tilt" ${app.preferences.enableTilt !== false ? 'checked' : ''}> ペンの傾き (Tilt X/Y) 検知を有効化
+            </label>
+          </div>
+          <div class="form-field">
+            <label>筆圧カーブ (軟らかめ 0.4 〜 硬め 2.5): <strong id="pref-gamma-val">${app.preferences.pressureGamma}</strong></label>
+            <input type="range" id="pref-pressure-gamma" data-snap="none" min="0.4" max="2.5" step="0.1" value="${app.preferences.pressureGamma}">
+          </div>
+          <div class="form-field">
+            <label>最小反応筆圧 (デッドゾーン): <strong id="pref-minp-val">${Math.round((app.preferences.minPressure || 0.05) * 100)}%</strong></label>
+            <input type="range" id="pref-min-pressure" data-snap="percent" min="0" max="40" step="1" value="${Math.round((app.preferences.minPressure || 0.05) * 100)}">
+          </div>
+          <div class="form-field">
+            <label>手ブレ補正 (Stabilizer 0〜15): <strong id="pref-stab-val">${app.preferences.stabilizer}</strong></label>
+            <input type="range" id="pref-stabilizer" data-snap="none" min="0" max="15" step="1" value="${app.preferences.stabilizer}">
+          </div>
         </div>
-        <div class="form-field">
-          <label>利き手レイアウト (片手操作最適化)</label>
-          <select id="pref-handedness">
-            <option value="right" ${app.preferences.handedness === 'right' ? 'selected' : ''}>右利き標準 (左ツール / 右パネル)</option>
-            <option value="left" ${app.preferences.handedness === 'left' ? 'selected' : ''}>左利きモード (右ツール / 左パネル)</option>
-          </select>
+
+        <div style="background:var(--bg-input); border:1px solid var(--border-color); border-radius:6px; padding:10px; display:flex; flex-direction:column; gap:6px;">
+          <div style="display:flex; justify-content:space-between; font-size:0.8rem;">
+            <strong>🖊 筆圧・傾きライブテストパッド (ここで試し描きできます)</strong>
+            <span id="tablet-test-readout" style="color:var(--accent-hover); font-family:monospace;">デバイス: -- | 筆圧: 0% | 傾き: (0°, 0°)</span>
+          </div>
+          <canvas id="tablet-test-canvas" width="580" height="125" style="width:100%; height:125px; background:#111115; border:1px solid var(--border-color); border-radius:4px; touch-action:none; cursor:crosshair;"></canvas>
         </div>
       </div>
     `,
-    footerHtml: `<button type="button" id="pref-save" class="primary">設定を適用</button>`,
+    footerHtml: `
+      <button type="button" id="pref-cancel">キャンセル</button>
+      <button type="button" id="pref-save" class="primary">設定を適用</button>
+    `,
     onMount(body, footer, close) {
-      footer.querySelector('#pref-save').onclick = () => {
-        app.preferences.pressureGamma = Number(body.querySelector('#pref-pressure-gamma').value) || 1.0;
-        app.preferences.stabilizer = Number(body.querySelector('#pref-stabilizer').value) || 4;
-        app.preferences.uiScale = Number(body.querySelector('#pref-uiscale').value) || 1;
-        app.preferences.handedness = body.querySelector('#pref-handedness').value;
-        document.documentElement.style.setProperty('--ui-scale', String(app.preferences.uiScale));
-        document.getElementById('app-shell').setAttribute('data-handedness', app.preferences.handedness);
-        app.showToast('環境設定を反映しました');
+      // Tab switching
+      const tabs = body.querySelectorAll('.pref-tab-btn');
+      const switchTab = (tabId) => {
+        tabs.forEach(b => b.classList.toggle('active', b.getAttribute('data-pref-tab') === tabId));
+        body.querySelector('#pref-pane-general').style.display = tabId === 'general' ? 'block' : 'none';
+        body.querySelector('#pref-pane-keybinds').style.display = tabId === 'keybinds' ? 'flex' : 'none';
+        body.querySelector('#pref-pane-tablet').style.display = tabId === 'tablet' ? 'flex' : 'none';
+      };
+      tabs.forEach(btn => {
+        btn.onclick = () => switchTab(btn.getAttribute('data-pref-tab'));
+      });
+      switchTab(initialTab);
+
+      // Live value labels
+      const lpSlider = body.querySelector('#pref-longpress-sec');
+      lpSlider.oninput = () => { body.querySelector('#pref-lp-val').textContent = `${lpSlider.value}秒`; };
+      const gammaSlider = body.querySelector('#pref-pressure-gamma');
+      gammaSlider.oninput = () => { body.querySelector('#pref-gamma-val').textContent = gammaSlider.value; };
+      const minpSlider = body.querySelector('#pref-min-pressure');
+      minpSlider.oninput = () => { body.querySelector('#pref-minp-val').textContent = `${minpSlider.value}%`; };
+      const stabSlider = body.querySelector('#pref-stabilizer');
+      stabSlider.oninput = () => { body.querySelector('#pref-stab-val').textContent = stabSlider.value; };
+
+      // Keybindings Editor List
+      const kbBox = body.querySelector('#kb-list-container');
+      const workingKb = { ...app.keybindings };
+      let recordingActionKey = null;
+
+      const renderKbRows = () => {
+        const actions = app.getBindableActions();
+        kbBox.innerHTML = actions.map(item => {
+          const currentCombo = workingKb[item.key] || '';
+          const isRec = recordingActionKey === item.key;
+          return `
+            <div style="display:flex; align-items:center; justify-content:space-between; padding:6px 10px; border-bottom:1px solid var(--border-color); font-size:0.82rem;">
+              <span>${item.label}</span>
+              <div style="display:flex; gap:5px; align-items:center;">
+                <button type="button" class="kb-record-btn ${isRec ? 'primary' : ''}" data-kb-key="${item.key}" style="min-width:110px; font-family:monospace;">
+                  ${isRec ? 'キーを入力...' : (currentCombo || '未割当')}
+                </button>
+                <button type="button" class="kb-clear-btn" data-kb-clear="${item.key}" title="割り当て削除" style="padding:3px 7px; color:var(--danger)">削除</button>
+              </div>
+            </div>
+          `;
+        }).join('');
+
+        kbBox.querySelectorAll('.kb-record-btn').forEach(btn => {
+          btn.onclick = () => {
+            recordingActionKey = btn.getAttribute('data-kb-key');
+            renderKbRows();
+          };
+        });
+        kbBox.querySelectorAll('.kb-clear-btn').forEach(btn => {
+          btn.onclick = () => {
+            const k = btn.getAttribute('data-kb-clear');
+            workingKb[k] = '';
+            recordingActionKey = null;
+            renderKbRows();
+          };
+        });
+      };
+
+      renderKbRows();
+
+      const onKeyRecord = (ev) => {
+        if (!recordingActionKey) return;
+        ev.preventDefault();
+        ev.stopPropagation();
+        if (['Control', 'Shift', 'Alt', 'Meta'].includes(ev.key)) return;
+        if (ev.key === 'Escape') {
+          recordingActionKey = null;
+          renderKbRows();
+          return;
+        }
+        const parts = [];
+        if (ev.ctrlKey || ev.metaKey) parts.push('Ctrl');
+        if (ev.shiftKey) parts.push('Shift');
+        if (ev.altKey) parts.push('Alt');
+        const mainKey = ev.key.length === 1 ? ev.key.toUpperCase() : ev.key;
+        parts.push(mainKey);
+        workingKb[recordingActionKey] = parts.join('+');
+        recordingActionKey = null;
+        renderKbRows();
+      };
+      window.addEventListener('keydown', onKeyRecord, true);
+
+      body.querySelector('#btn-reset-all-kb').onclick = () => {
+        Object.assign(workingKb, app.getDefaultKeybindings());
+        recordingActionKey = null;
+        renderKbRows();
+      };
+
+      // Pen Tablet Live Test Canvas
+      const testCanvas = body.querySelector('#tablet-test-canvas');
+      const readout = body.querySelector('#tablet-test-readout');
+      const tctx = testCanvas.getContext('2d');
+      let testDrawing = false;
+
+      testCanvas.addEventListener('pointerdown', (e) => {
+        testCanvas.setPointerCapture(e.pointerId);
+        testDrawing = true;
+      });
+      testCanvas.addEventListener('pointermove', (e) => {
+        const rect = testCanvas.getBoundingClientRect();
+        const x = (e.clientX - rect.left) * (testCanvas.width / rect.width);
+        const y = (e.clientY - rect.top) * (testCanvas.height / rect.height);
+        const gamma = Number(gammaSlider.value) || 1.0;
+        const rawP = e.pressure > 0 ? e.pressure : 0.5;
+        const adjP = Math.pow(rawP, gamma);
+        const tx = e.tiltX || 0;
+        const ty = e.tiltY || 0;
+        readout.textContent = `デバイス: ${e.pointerType} | 筆圧: ${Math.round(adjP * 100)}% | 傾き: (${tx}°, ${ty}°)`;
+
+        if (testDrawing) {
+          const r = Math.max(1.5, adjP * 14);
+          tctx.fillStyle = '#3b82f6';
+          tctx.beginPath();
+          tctx.ellipse(x, y, r * (1 + Math.abs(tx) / 90), r, (tx * Math.PI) / 180, 0, Math.PI * 2);
+          tctx.fill();
+        }
+      });
+      testCanvas.addEventListener('pointerup', () => { testDrawing = false; });
+
+      footer.querySelector('#pref-cancel').onclick = () => {
+        window.removeEventListener('keydown', onKeyRecord, true);
         close();
       };
+
+      footer.querySelector('#pref-save').onclick = () => {
+        window.removeEventListener('keydown', onKeyRecord, true);
+
+        const consentChecked = body.querySelector('#pref-cookie-consent').checked;
+        setStorageConsent(consentChecked);
+        app.updateCookieConsentBanner();
+
+        const nextLang = body.querySelector('#pref-lang').value;
+        setLang(nextLang);
+        document.querySelectorAll('[data-i18n]').forEach(el => {
+          el.textContent = t(el.getAttribute('data-i18n'));
+        });
+
+        const nextTheme = body.querySelector('#pref-theme').value;
+        document.documentElement.setAttribute('data-theme', nextTheme);
+
+        app.preferences.theme = nextTheme;
+        app.preferences.lang = nextLang;
+        app.preferences.uiScale = Number(body.querySelector('#pref-uiscale').value) || 1;
+        app.preferences.handedness = body.querySelector('#pref-handedness').value;
+        app.preferences.longPressSeconds = Number(lpSlider.value) || 5;
+        app.preferences.enablePressure = body.querySelector('#pref-pen-pressure').checked;
+        app.preferences.enableTilt = body.querySelector('#pref-pen-tilt').checked;
+        app.preferences.pressureGamma = Number(gammaSlider.value) || 1.0;
+        app.preferences.minPressure = (Number(minpSlider.value) || 5) / 100;
+        app.preferences.stabilizer = Number(stabSlider.value) || 4;
+        app.keybindings = { ...workingKb };
+
+        document.documentElement.style.setProperty('--ui-scale', String(app.preferences.uiScale));
+        document.getElementById('app-shell').setAttribute('data-handedness', app.preferences.handedness);
+
+        if (hasStorageConsent()) {
+          savePreferencesToStorage({
+            preferences: app.preferences,
+            keybindings: app.keybindings
+          });
+        }
+
+        app.refreshAllPanels();
+        app.requestRender();
+        app.showToast('環境設定・キーバインドを反映しました');
+        close();
+      };
+    }
+  });
+}
+
+/**
+ * 6. About SVG EDITOR Modal
+ */
+export function showAboutModal() {
+  openModal({
+    title: 'About SVG EDITOR POWERED BY MOTOYUCCHI',
+    bodyHtml: `
+      <div style="display:flex; flex-direction:column; gap:14px; font-size:0.92rem; line-height:1.65;">
+        <div style="display:flex; align-items:center; gap:12px;">
+          <img src="https://pashatoku.com/favicon.png" width="44" height="44" alt="Logo" draggable="false" style="border-radius:8px;" onerror="this.style.display='none'">
+          <div>
+            <h3 style="margin:0;">SVG EDITOR POWERED BY MOTOYUCCHI</h3>
+            <div style="color:var(--text-muted); font-size:0.84rem;">作者 (Author): <strong>MotoYucchi (もとゆっち / モトユッチ)</strong></div>
+          </div>
+        </div>
+
+        <div style="background:var(--bg-input); border:1px solid var(--border-color); border-radius:8px; padding:14px;">
+          SVG EDITOR POWERED BY MOTOYUCCHI は、ブラウザ上で動作する軽量なベクター画像編集ツールです。フレームワークを使用せず、ピュアなHTML、CSS、JavaScriptで構築されています。
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:8px; font-size:0.86rem;">
+          <div>
+            <strong>GitHub リポジトリ:</strong><br>
+            <a href="https://github.com/MotoYucchi/SVG-EDITOR" target="_blank" rel="noopener" style="color:var(--accent-hover);">https://github.com/MotoYucchi/SVG-EDITOR</a>
+          </div>
+          <div>
+            <strong>使い方・操作方法 TIPS ページ:</strong><br>
+            <a href="./tips.html" target="_blank" rel="noopener" style="color:var(--accent-hover);">使い方 & TIPS 完全ガイドを開く (tips.html) ↗</a>
+          </div>
+        </div>
+      </div>
+    `,
+    footerHtml: `<button type="button" id="about-close" class="primary">閉じる</button>`,
+    onMount(body, footer, close) {
+      footer.querySelector('#about-close').onclick = close;
     }
   });
 }

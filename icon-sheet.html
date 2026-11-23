@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ja" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SVG Editor — Icon Sheet (再利用 / 新規作成 一覧)</title>
+  <style>
+    :root[data-theme="dark"] {
+      --bg: #18181b;
+      --bg-card: #232329;
+      --bg-panel: #232329;
+      --text: #f4f4f5;
+      --text-muted: #a1a1aa;
+      --border: #3f3f46;
+      --accent: #3b82f6;
+      --reused-bg: rgba(16, 185, 129, 0.15);
+      --reused-fg: #34d399;
+      --new-bg: rgba(59, 130, 246, 0.15);
+      --new-fg: #60a5fa;
+    }
+    :root[data-theme="light"] {
+      --bg: #f8fafc;
+      --bg-card: #ffffff;
+      --bg-panel: #ffffff;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --accent: #2563eb;
+      --reused-bg: rgba(5, 150, 105, 0.12);
+      --reused-fg: #059669;
+      --new-bg: rgba(37, 99, 235, 0.12);
+      --new-fg: #2563eb;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 28px;
+      line-height: 1.5;
+    }
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+    .controls {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    button, select, input[type="color"] {
+      background: var(--bg-card);
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 8px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    button.active {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #fff;
+    }
+    .stats {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 20px;
+      font-size: 0.9rem;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .badge.reused { background: var(--reused-bg); color: var(--reused-fg); }
+    .badge.new { background: var(--new-bg); color: var(--new-fg); }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 14px;
+    }
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      transition: border-color 0.15s;
+    }
+    .card:hover {
+      border-color: var(--accent);
+    }
+    .icon-preview {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .icon-box {
+      width: 48px;
+      height: 48px;
+      border-radius: 8px;
+      border: 1px dashed var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--icon-color, var(--text));
+    }
+    .meta-name {
+      font-family: monospace;
+      font-weight: 700;
+      font-size: 0.92rem;
+    }
+    .meta-label {
+      font-size: 0.85rem;
+      color: var(--text);
+    }
+    .meta-note {
+      font-size: 0.76rem;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>SVG Editor — Unified 24×24 Icon Sheet</h1>
+      <p style="color:var(--text-muted); font-size:0.9rem;">
+        Grid: 24×24 (`viewBox="0 0 24 24"`) | Stroke: 1.75px Round | Color: `currentColor`
+      </p>
+    </div>
+    <div class="controls">
+      <button id="filter-all" class="active">すべて表示</button>
+      <button id="filter-reused">既存から正規化再利用 (Reused)</button>
+      <button id="filter-new">新規作成 (New)</button>
+      <button id="toggle-theme">テーマ切替 (Dark / Light)</button>
+      <label style="font-size:0.85rem; display:flex; align-items:center; gap:6px;">
+        currentColor確認:
+        <input type="color" id="color-test" value="#f4f4f5" style="padding:2px; width:36px; height:32px;">
+      </label>
+      <a href="./index.html" style="color:var(--accent); text-decoration:none; font-weight:600; margin-left:8px;">← エディタ本体へ</a>
+    </div>
+  </header>
+
+  <div class="stats" id="stats-bar"></div>
+  <div class="grid" id="icon-grid"></div>
+
+  <script type="module">
+    import { ICON_CATALOG, renderIcon } from './js/ui/icons.js';
+
+    const grid = document.getElementById('icon-grid');
+    const statsBar = document.getElementById('stats-bar');
+    let currentFilter = 'all';
+
+    function renderSheet() {
+      const entries = Object.entries(ICON_CATALOG);
+      const reusedCount = entries.filter(([, v]) => v.origin === 'reused').length;
+      const newCount = entries.filter(([, v]) => v.origin === 'new').length;
+
+      statsBar.innerHTML = `
+        <span>合計: <strong>${entries.length}</strong> アイコン</span>
+        <span class="badge reused">再利用・24×24正規化: ${reusedCount}</span>
+        <span class="badge new">新規作成: ${newCount}</span>
+      `;
+
+      grid.innerHTML = entries
+        .filter(([, v]) => currentFilter === 'all' || v.origin === currentFilter)
+        .map(([key, item]) => `
+          <div class="card" data-origin="${item.origin}">
+            <div class="icon-preview">
+              <div class="icon-box">${renderIcon(key, 28)}</div>
+              <span class="badge ${item.origin}">${item.origin === 'reused' ? '再利用 (正規化)' : '新規作成'}</span>
+            </div>
+            <div class="meta-name">${key}</div>
+            <div class="meta-label">${item.labelJa}<br><small style="color:var(--text-muted)">${item.labelEn}</small></div>
+            <div class="meta-note">${item.note}</div>
+          </div>
+        `).join('');
+    }
+
+    document.getElementById('filter-all').onclick = (e) => {
+      currentFilter = 'all';
+      document.querySelectorAll('.controls button[id^="filter-"]').forEach(b => b.classList.remove('active'));
+      e.target.classList.add('active');
+      renderSheet();
+    };
+    document.getElementById('filter-reused').onclick = (e) => {
+      currentFilter = 'reused';
+      document.querySelectorAll('.controls button[id^="filter-"]').forEach(b => b.classList.remove('active'));
+      e.target.classList.add('active');
+      renderSheet();
+    };
+    document.getElementById('filter-new').onclick = (e) => {
+      currentFilter = 'new';
+      document.querySelectorAll('.controls button[id^="filter-"]').forEach(b => b.classList.remove('active'));
+      e.target.classList.add('active');
+      renderSheet();
+    };
+    document.getElementById('toggle-theme').onclick = () => {
+      const root = document.documentElement;
+      const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      root.setAttribute('data-theme', next);
+      document.documentElement.style.removeProperty('--icon-color');
+    };
+    document.getElementById('color-test').oninput = (e) => {
+      document.documentElement.style.setProperty('--icon-color', e.target.value);
+    };
+
+    renderSheet();
+  </script>
+</body>
+</html>

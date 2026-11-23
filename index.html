@@ -1,181 +1,279 @@
 <!DOCTYPE html>
-<html lang="ja" prefix="og: http://ogp.me/ns#">
+<html lang="ja" data-theme="dark" prefix="og: http://ogp.me/ns#">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    
-    <title>SVG EDITOR Powered by MotoYucchi | 簡易Webベクター編集 & コード直接編集 (もとゆっち/モトユッチ)</title>
-    
-    <meta name="description" content="ブラウザ上で動作する開発中の簡易SVGエディタ。GUIでのレイヤー操作に加え、コードを直接編集(Raw Code)することで細かい微調整が可能。開発: MotoYucchi (もとゆっち/モトユッチ)。">
-    
-    <meta name="keywords" content="SVGエディタ, SVG Editor, ベクター画像, コード編集, 無料ツール, MotoYucchi, もとゆっち, モトユッチ, Webアプリ">
-    <meta name="author" content="MotoYucchi (もとゆっち)">
-    <meta name="robots" content="index, follow">
-
-    <meta property="og:title" content="SVG EDITOR Powered by MotoYucchi">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="https://pashatoku.com/"> <meta property="og:image" content="https://pashatoku.com/favicon.png">
-    <meta property="og:description" content="MotoYucchi（もとゆっち）が開発中のSVG編集ツール。簡易的な描画機能と、コード直接編集による微調整機能を搭載。">
-    <meta property="og:site_name" content="SVG EDITOR POWERED BY MOTOYUCCHI">
-    
-    <meta name="twitter:card" content="summary">
-    <meta name="twitter:title" content="SVG EDITOR by MotoYucchi">
-    <meta name="twitter:description" content="開発者: モトユッチ(MotoYucchi)。コード直接編集も可能な、開発中の簡易SVG作成ツール。">
-
-    <link rel="icon" href="https://pashatoku.com/favicon.png">
-    <link rel="apple-touch-icon" href="https://pashatoku.com/favicon.png">
-
-    <link rel="stylesheet" href="reset.css">
-    <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="print.css">
-
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      "name": "SVG EDITOR POWERED BY MOTOYUCCHI",
-      "operatingSystem": "Browser",
-      "applicationCategory": "DesignApplication",
-      "offers": {
-        "@type": "Offer",
-        "price": "0",
-        "priceCurrency": "JPY"
-      },
-      "author": {
-        "@type": "Person",
-        "name": "MotoYucchi",
-        "alternateName": ["もとゆっち", "モトユッチ"]
-      },
-      "description": "A browser-based simple SVG editing tool developed by MotoYucchi, featuring raw code editing capabilities."
-    }
-    </script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>SVG EDITOR Studio Powered by MotoYucchi | 直感ベクター＆ラスター描画ペイントツール</title>
+  <meta name="description" content="お絵かきソフトの直感的な描画感とベクターの非破壊編集を融合した次世代SVGエディタ。ベクター/ラスターレイヤー、筆圧ブラシ、パス演算、カスタム書き出し対応。開発: MotoYucchi。">
+  <meta name="author" content="MotoYucchi (もとゆっち)">
+  <meta property="og:title" content="SVG EDITOR Studio Powered by MotoYucchi">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://pashatoku.com/">
+  <meta property="og:image" content="https://pashatoku.com/favicon.png">
+  <link rel="icon" href="https://pashatoku.com/favicon.png">
+  <link rel="stylesheet" href="./css/app.css">
 </head>
 <body>
-<div id="sys-init-lock" class="sys-lock-overlay">
-    <div class="sys-lock-content">
-        <h3>🔒 System Initialization</h3>
-        <p>
-            SVG EDITORを起動するために、ローカルストレージへのアクセス権限が必要です。<br>
-            これに同意することで、エディタの設定や作業状態をブラウザ内に保存できるようになります。<br><br>
-            <small style="color:#888;">※サーバーへのデータ送信は行われません。</small>
-        </p>
-        <div class="sys-lock-actions">
-            <button class="primary" onclick="unlockSystem()">システムを起動する (同意)</button>
+  <div id="app-shell" class="app-shell" data-handedness="right">
+    <!-- 1. Top Menu Bar -->
+    <header class="top-menubar" role="menubar">
+      <div class="brand-group">
+        <button id="btn-toggle-left" title="左ツールバー表示切替" aria-label="Toggle Left Toolbar"></button>
+        <img src="https://pashatoku.com/favicon.png" width="20" height="20" alt="Logo" onerror="this.style.display='none'">
+        <span data-i18n="app.title">SVG EDITOR Studio</span>
+        <span class="brand-badge">v2.0</span>
+      </div>
+
+      <div class="menu-actions">
+        <button id="btn-new-doc" data-i18n="menu.new" title="新規作成 (Ctrl+N)">新規作成</button>
+        <button id="btn-open-file" data-i18n="menu.open" title="SVGまたはワークスペース(.svgew)を開く (Ctrl+O)">開く</button>
+        <button id="btn-save-workspace" data-i18n="menu.saveWorkspace" title="ワークスペース(.svgew)保存 (Ctrl+S)">ワークスペース保存</button>
+        <div class="menu-divider"></div>
+        <button id="btn-quick-svg" class="primary" data-i18n="menu.exportSvg" title="ワンクリックSVG書き出し">SVG保存</button>
+        <button id="btn-quick-png" data-i18n="menu.exportPng" title="ワンクリックPNG書き出し">PNG保存</button>
+        <button id="btn-custom-export" data-i18n="menu.customExport" title="詳細設定・プレビュー付きカスタム書き出し (Ctrl+Shift+E)">カスタム書き出し...</button>
+        <div class="menu-divider"></div>
+        <button id="btn-undo" title="元に戻す (Ctrl+Z)" disabled></button>
+        <button id="btn-redo" title="やり直す (Ctrl+Y / Ctrl+Shift+Z)" disabled></button>
+        <div class="menu-divider"></div>
+        <button id="btn-canvas-resize" data-i18n="menu.canvasSize" title="キャンバスサイズ・解像度変更">サイズ変更</button>
+        <button id="btn-rasterize-layer" data-i18n="menu.rasterize" title="選択ベクターレイヤー/グループを高解像度ラスターレイヤーへ複製変換">ラスター化</button>
+        <div class="menu-divider"></div>
+        <button id="btn-settings" title="環境設定 (筆圧カーブ・UIスケール・左利きモード)"></button>
+        <button id="btn-theme" title="テーマ切替 (ダーク / ライト)"></button>
+        <button id="btn-lang" title="言語切替 (日本語 / English)">JA/EN</button>
+        <a href="./icon-sheet.html" target="_blank" style="text-decoration:none;">
+          <button type="button" data-i18n="menu.icons" title="再利用/新規作成アイコンシート一覧を開く">Icons</button>
+        </a>
+        <button id="btn-help" title="ショートカット一覧とチュートリアル (?)"></button>
+        <button id="btn-toggle-right" title="右ドックパネル表示切替" aria-label="Toggle Right Dock"></button>
+      </div>
+      <input type="file" id="hidden-file-input" accept=".svg,.svgew,.zip,image/*" style="display:none">
+    </header>
+
+    <!-- 2. Context Bar (Dynamically populated based on active tool) -->
+    <div id="context-bar" class="context-bar" role="toolbar" aria-label="Tool Context Options"></div>
+
+    <!-- 3. Main Workspace Row -->
+    <div class="workspace-row">
+      <!-- Left Tool Palette -->
+      <nav id="left-toolbar" class="left-toolbar" aria-label="Drawing Tools"></nav>
+
+      <!-- Center Viewport with Horizontal & Vertical Rulers -->
+      <main id="viewport-container" class="viewport-container">
+        <div id="ruler-corner" class="ruler-corner" title="クリックで単位切替 (px / mm / cm / inch) / ダブルクリックで原点リセット">px</div>
+        <canvas id="ruler-top" class="ruler-top" title="ドラッグして水平ガイドラインを作成"></canvas>
+        <canvas id="ruler-left" class="ruler-left" title="ドラッグして垂直ガイドラインを作成"></canvas>
+
+        <div id="canvas-stage" class="canvas-stage">
+          <canvas id="main-canvas"></canvas>
+          <canvas id="overlay-canvas"></canvas>
+          <!-- IME-friendly floating text input -->
+          <textarea id="canvas-ime-editor" class="canvas-ime-editor" placeholder="テキストを入力 (Ctrl+Enterで確定 / Escでキャンセル)"></textarea>
+
+          <!-- Floating Viewport HUD -->
+          <div class="canvas-hud">
+            <button id="hud-zoom-out" title="縮小 (-)">−</button>
+            <button id="hud-zoom-100" title="100%表示 (Ctrl+0)">100%</button>
+            <button id="hud-zoom-in" title="拡大 (+)">＋</button>
+            <button id="hud-zoom-fit" title="画面にフィット">Fit</button>
+            <span style="color:var(--border-color)">|</span>
+            <button id="hud-rotate-left" title="左に15°回転">↺</button>
+            <button id="hud-rotate-reset" title="回転を0°にリセット">0°</button>
+            <button id="hud-rotate-right" title="右に15°回転">↻</button>
+            <button id="hud-flip-view" title="表示を左右反転 (デッサン狂い確認用)">⇄反転</button>
+            <button id="hud-grid-toggle" title="グリッド表示切替">#Grid</button>
+          </div>
         </div>
+      </main>
+
+      <!-- Right Dock Panels -->
+      <aside id="right-dock" class="right-dock" aria-label="Inspector Panels">
+        <!-- Panel 1: Navigator (Minimap) -->
+        <section class="dock-panel" id="panel-navigator">
+          <div class="dock-header">
+            <span data-i18n="panel.navigator">ナビゲーター</span>
+            <span id="nav-zoom-label" style="font-size:0.78rem; color:var(--text-muted)">100%</span>
+          </div>
+          <div class="dock-body">
+            <div style="display:flex; justify-content:center; background:var(--bg-input); border:1px solid var(--border-color); border-radius:4px; padding:4px;">
+              <canvas id="navigator-canvas" width="240" height="135" style="max-width:100%; cursor:pointer;"></canvas>
+            </div>
+            <div style="display:flex; gap:6px; align-items:center;">
+              <label style="font-size:0.75rem; color:var(--text-muted);">Zoom</label>
+              <input type="range" id="nav-zoom-slider" min="10" max="800" value="100" style="flex:1">
+              <label style="font-size:0.75rem; color:var(--text-muted);">Rot</label>
+              <input type="range" id="nav-rot-slider" min="-180" max="180" value="0" style="width:70px">
+            </div>
+          </div>
+        </section>
+
+        <!-- Panel 2: Color Picker & Swatches -->
+        <section class="dock-panel" id="panel-color">
+          <div class="dock-header">
+            <span data-i18n="panel.color">カラー & スウォッチ</span>
+            <select id="color-mode-select" style="font-size:0.75rem; padding:1px 4px;">
+              <option value="HSV">HSV環</option>
+              <option value="RGB">RGB</option>
+              <option value="HSL">HSL</option>
+              <option value="CMYK">CMYK</option>
+            </select>
+          </div>
+          <div class="dock-body">
+            <div class="color-picker-layout">
+              <div class="color-wheel-wrap">
+                <canvas id="color-wheel-canvas" width="110" height="110" style="cursor:crosshair"></canvas>
+              </div>
+              <div class="color-Wells">
+                <div class="main-sub-wells">
+                  <div>
+                    <div style="font-size:0.7rem; color:var(--text-muted)">メイン(塗/筆)</div>
+                    <div id="well-main-color" class="color-well-swatch active-well" title="メインカラー (クリックで編集)"></div>
+                  </div>
+                  <button id="btn-swap-colors" title="メイン/サブカラー入替 (X キー)" style="padding:4px 6px;">⇄ X</button>
+                  <div>
+                    <div style="font-size:0.7rem; color:var(--text-muted)">サブ(線/背景)</div>
+                    <div id="well-sub-color" class="color-well-swatch" title="サブカラー / ストローク色"></div>
+                  </div>
+                </div>
+                <div style="display:flex; gap:4px; align-items:center;">
+                  <input type="text" id="color-hex-input" value="#3b82f6" style="width:82px; font-family:monospace;" title="HEXカラーコード">
+                  <input type="color" id="native-color-picker" value="#3b82f6" style="width:28px; height:26px; border:none; background:none; cursor:pointer;">
+                  <button id="btn-add-swatch" title="現在の色をスウォッチに追加">＋</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Dynamic Color Sliders (RGB / HSV / HSL / CMYK) -->
+            <div id="color-sliders-box" style="display:flex; flex-direction:column; gap:4px;"></div>
+
+            <!-- Out of Gamut Alert Banner -->
+            <div id="gamut-alert-box" class="gamut-alert">
+              <span id="gamut-alert-text">⚠ 色域外警告</span>
+              <button id="btn-fix-gamut" style="font-size:0.72rem; padding:2px 6px;">近似色へ補正</button>
+            </div>
+
+            <!-- Swatches & Color History -->
+            <div style="font-size:0.75rem; color:var(--text-muted); display:flex; justify-content:space-between;">
+              <span>スウォッチ & 履歴</span>
+              <span id="color-history-inline" style="display:inline-flex; gap:3px;"></span>
+            </div>
+            <div id="swatch-grid" class="swatch-grid"></div>
+          </div>
+        </section>
+
+        <!-- Panel 3: Layers Tree (Vector / Raster / Group) -->
+        <section class="dock-panel" id="panel-layers">
+          <div class="dock-header">
+            <span data-i18n="panel.layers">レイヤー</span>
+            <span id="active-layer-badge" class="layer-type-pill vector">Vector</span>
+          </div>
+          <div class="dock-body">
+            <div style="display:flex; gap:6px; align-items:center;">
+              <select id="layer-blend-select" title="ブレンドモード" style="flex:1; font-size:0.8rem;">
+                <option value="normal">通常 (Normal)</option>
+                <option value="multiply">乗算 (Multiply)</option>
+                <option value="screen">スクリーン (Screen)</option>
+                <option value="overlay">オーバーレイ (Overlay)</option>
+                <option value="darken">比較(暗) (Darken)</option>
+                <option value="lighten">比較(明) (Lighten)</option>
+                <option value="color-dodge">覆い焼き (Color Dodge)</option>
+                <option value="color-burn">焼き込み (Color Burn)</option>
+                <option value="hard-light">ハードライト (Hard Light)</option>
+                <option value="soft-light">ソフトライト (Soft Light)</option>
+                <option value="difference">差の絶対値 (Difference)</option>
+                <option value="exclusion">除外 (Exclusion)</option>
+              </select>
+              <label style="font-size:0.75rem; color:var(--text-muted)">不透明度</label>
+              <input type="range" id="layer-opacity-slider" min="0" max="100" value="100" style="width:70px">
+              <span id="layer-opacity-val" style="font-size:0.75rem; width:32px;">100%</span>
+            </div>
+
+            <div class="layer-toolbar">
+              <button id="btn-add-vec-layer" data-i18n="layer.addVector" title="新規ベクターレイヤー追加">+ ベクター</button>
+              <button id="btn-add-ras-layer" data-i18n="layer.addRaster" title="新規ラスターレイヤー追加">+ ラスター</button>
+              <button id="btn-add-grp-layer" data-i18n="layer.addGroup" title="新規グループフォルダ追加">+ グループ</button>
+            </div>
+            <div class="layer-toolbar">
+              <button id="btn-layer-up" title="レイヤーを1つ上へ">↑</button>
+              <button id="btn-layer-down" title="レイヤーを1つ下へ">↓</button>
+              <button id="btn-layer-clip" title="下のレイヤーでクリッピング切替">クリッピング</button>
+              <button id="btn-layer-dup" data-i18n="layer.duplicate" title="選択レイヤーを複製">複製</button>
+              <button id="btn-layer-merge" title="下のレイヤーと結合">結合</button>
+              <button id="btn-layer-del" data-i18n="layer.delete" title="選択レイヤーを削除 (Undo可能)" style="color:var(--danger)">削除</button>
+            </div>
+
+            <ul id="layer-list" class="layer-list" role="tree" aria-label="Layer Tree"></ul>
+          </div>
+        </section>
+
+        <!-- Panel 4: Object Properties, Transform & Alignment -->
+        <section class="dock-panel" id="panel-properties">
+          <div class="dock-header">
+            <span data-i18n="panel.properties">プロパティ & 変形</span>
+          </div>
+          <div id="properties-body" class="dock-body"></div>
+        </section>
+
+        <!-- Panel 5: History Stack (Jump Anywhere) -->
+        <section class="dock-panel" id="panel-history">
+          <div class="dock-header">
+            <span data-i18n="panel.history">ヒストリー (履歴ジャンプ)</span>
+            <span id="history-count-label" style="font-size:0.75rem; color:var(--text-muted)">0件</span>
+          </div>
+          <div class="dock-body">
+            <ul id="history-list" class="history-list"></ul>
+          </div>
+        </section>
+      </aside>
     </div>
-</div>
-<script>
-    (function(){
-        try {
-            if (localStorage.getItem('svgEditor_cookieAllowed') === 'true') {
-                document.getElementById('sys-init-lock').classList.add('unlocked');
-            }
-        } catch(e){}
-    })();
-</script>
 
-<header>
-    <div class="header-left" style="display:flex; align-items:center; gap:10px;">
-        <button id="toggle-layer-btn" class="icon-btn" onclick="togglePanel('left')" title="レイヤーパネル切替">
-            <img src="./icons/layout-sidebar-left.svg" alt="Layers">
-        </button>
-        
-        <h1>
-            <img src="https://pashatoku.com/favicon.png" width="24" height="24" alt="favicon">
-            <span class="app-title">SVG EDITOR</span>
-            <small style="font-size: 0.7em; opacity: 0.7;">POWERED BY MOTOYUCCHI</small>
-        </h1>
+    <!-- 4. Bottom Status Bar -->
+    <footer class="status-bar" role="status">
+      <div class="status-group">
+        <span id="st-coords">XY: (0, 0) px</span>
+        <span id="st-zoom">Zoom: 100% (Rot: 0°)</span>
+        <span id="st-canvas">1200×800 px (96 DPI / RGB)</span>
+        <span id="st-selection">選択なし</span>
+      </div>
+      <div class="status-group">
+        <span id="st-tool">Tool: 選択 (V)</span>
+        <span id="st-layer">Layer: ベクターレイヤー 1</span>
+        <span id="st-pressure">筆圧: --</span>
+        <span id="st-memory">Mem: ~18 MB</span>
+        <span id="st-save" style="color:var(--vector-badge)">● 自動保存済み</span>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Custom Right-Click / Long-Press Context Menu -->
+  <div id="canvas-context-menu" class="context-menu" role="menu">
+    <button data-ctx-action="duplicate">複製 (Ctrl+D)</button>
+    <button data-ctx-action="bring-front">最前面へ移動</button>
+    <button data-ctx-action="send-back">最背面へ移動</button>
+    <button data-ctx-action="flip-h">左右反転</button>
+    <button data-ctx-action="flip-v">上下反転</button>
+    <button data-ctx-action="convert-path">パスに変換 (アウトライン化)</button>
+    <button data-ctx-action="offset-path">パスをオフセット (+8px)</button>
+    <button data-ctx-action="rasterize">このレイヤーをラスター化 (複製)</button>
+    <button data-ctx-action="delete" style="color:var(--danger)">削除 (Delete)</button>
+  </div>
+
+  <!-- Universal Modal Backdrop -->
+  <div id="modal-backdrop" class="modal-backdrop" role="dialog" aria-modal="true">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <span id="modal-title">Dialog</span>
+        <button id="modal-close-btn" aria-label="Close">✕</button>
+      </div>
+      <div id="modal-body" class="modal-body"></div>
+      <div id="modal-footer" class="modal-footer"></div>
     </div>
+  </div>
 
-    <div class="toolbar">
-        <button id="inspect-btn" onclick="toggleInspectMode()" title="要素を選択">➚</button>
-        <button onclick="printSVG()" title="印刷">🖨</button>
-        <div class="toolbar-separator"></div>
-        <button onclick="document.getElementById('file-input').click()" title="開く">📂</button>
-        <button class="primary" onclick="exportSVG()" title="保存">💾</button>
-        <input style="display: none;" type="file" id="file-input" accept=".svg" onchange="loadSVG(this)">
-        
-        <div class="toolbar-separator"></div>
-        <button id="toggle-prop-btn" class="icon-btn" onclick="togglePanel('right')" title="プロパティパネル切替">
-            <img src="./icons/layout-sidebar-right.svg" alt="Properties">
-        </button>
-    </div>
-</header>
+  <!-- Toast Container -->
+  <div id="toast-container" class="toast-container"></div>
 
-<div id="code-modal" class="modal-overlay">
-    <div class="modal-content">
-        <div class="modal-header">
-            <h3 id="code-modal-title">Raw Code Editor</h3>
-            <button class="close-btn" onclick="closeCodeModal()">×</button>
-        </div>
-        <div class="modal-body">
-            <p id="code-modal-desc" style="color:#aaa; font-size:0.85rem; margin-bottom:10px;"></p>
-            <textarea id="code-modal-textarea" spellcheck="false"></textarea>
-        </div>
-        <div class="modal-footer">
-            <button onclick="closeCodeModal()">キャンセル</button>
-            <button class="primary" onclick="applyCodeModal()">反映する</button>
-        </div>
-    </div>
-</div>
-
-<div class="main-container">
-    <div id="layer-container" class="left-panel"></div>
-
-    <div class="canvas-area">
-        <div id="svg-wrapper">
-            <svg id="main-svg" width="600" height="400" viewBox="0 0 600 400" xmlns="http://www.w3.org/2000/svg" style="background: white;">
-                <defs>
-                    <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" style="stop-color:#007acc;stop-opacity:1" />
-                        <stop offset="100%" style="stop-color:#00d2ff;stop-opacity:1" />
-                    </linearGradient>
-                </defs>
-
-                <g id="bg-group">
-                    <rect id="bg-rect" x="0" y="0" width="600" height="400" fill="#f5f5f5" stroke="none" />
-                    <path id="grid-lines" d="M 0 200 L 600 200 M 300 0 L 300 400" stroke="#e0e0e0" stroke-width="2" stroke-dasharray="5,5" fill="none" />
-                </g>
-
-                <g id="demo-content" transform="translate(100, 80)">
-
-                    <rect id="demo-rect" x="0" y="0" width="150" height="100" rx="10" ry="10" fill="url(#grad1)" stroke="#005a9e" stroke-width="2" />
-
-                    <text id="demo-text" x="20" y="60" font-family="'Segoe UI', sans-serif" font-size="24" font-weight="bold" fill="white" style="text-shadow: 1px 1px 2px rgba(0,0,0,0.3);">
-                        Hello!
-                    </text>
-
-                    <path id="demo-arrow" d="M 180 50 L 250 50 L 250 20 L 300 75 L 250 130 L 250 100 L 180 100 Z" fill="#ff6b6b" stroke="#c0392b" stroke-width="2" />
-
-                    <text id="demo-subtext" x="180" y="160" font-family="monospace" font-size="14" fill="#666">
-                        &lt;Edit Me /&gt;
-                    </text>
-                </g>
-
-                <g id="sticker-group" transform="translate(450, 300) rotate(-15)">
-                    <circle id="sticker-bg" cx="0" cy="0" r="40" fill="#ffd700" stroke="#f1c40f" stroke-width="3" />
-                    <text id="sticker-text" x="0" y="5" text-anchor="middle" font-size="12" font-weight="bold" fill="#333">NEW</text>
-                </g>
-            </svg>
-        </div>
-    </div>
-
-    <div id="tool-container" class="right-panel"></div>
-</div>
-
-<footer style="font-size: 0.1px; color: transparent; height: 1px; overflow: hidden; position: absolute; top: -9999px;">
-    <h2>SVG EDITOR POWERED BY MOTOYUCCHI について</h2>
-    <p>
-        この「SVG EDITOR」は、開発者 <strong>MotoYucchi (もとゆっち / モトユッチ)</strong> が現在開発を行っている、ブラウザベースの簡易ベクター画像編集ツールです。
-        Rect, Path, Textなどの基本要素の配置や、レイヤーのドラッグ＆ドロップによる入れ替えに対応しています。
-        また、GUIだけでは難しい細かい調整のために、<strong>SVGコードを直接編集できる機能(Raw Code Editor)</strong>を搭載しており、
-        コードレベルでの柔軟な編集が可能です。開発中のツールのため、シンプルかつ軽量な動作を目指しています。
-    </p>
-</footer>
-
-<script src="main.js"></script>
-<script src="layer.js"></script>
-<script src="tool.js"></script>
-<script src="print.js"></script>
+  <script type="module" src="./js/app.js"></script>
 </body>
 </html>
